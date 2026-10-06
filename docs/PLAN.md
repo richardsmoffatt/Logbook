@@ -130,7 +130,7 @@ map of places flown.
 | D8 | `SHIPS` = ship/deck landings, and they **feed into currency**. | 2026-10-06 |
 | D9 | Non-ICAO location codes are real landing sites. Each gets a `place` record with a name and lat/long, filled in gradually. The app supports unlisted sites and ad-hoc lat/long. | 2026-10-06 |
 | D10 | LIW08–LIW99 are UAE military serials. Keep them as-is; the app permits non-civil registrations. | 2026-10-06 |
-| D11 | Night flights with no night landings are normally ones where the owner was PM. Add PF/PM per flight, and only PF landings count toward currency. Import leaves these entries as they are. | 2026-10-06 |
+| D11 | Add a PF/PM marker to each flight. **Landings are independent of PF/PM**: in helicopter operations the PM may fly the landing (e.g. because of the view on the approach), so landings can be logged on a PM flight. Every logged landing is a hands-on landing by the owner and **all of them count toward currency**. Imported flights have no PF/PM value (unknown). | 2026-10-06 |
 | D12 | The 37 IFR entries where total ≠ actual + simulated are under owner review (possibly VFR into IFR). The app will require IFR total = actual + simulated on entry. | 2026-10-06 (review pending) |
 
 Owner review file: `Logbook-Data-Review.xlsx`, generated from the export and not committed
@@ -139,11 +139,12 @@ because it contains personal data. Tabs: Two roles (31), IFR mismatch (37), Dupl
 
 Effect of D2 on the data:
 - Two AW139 Level D sessions have sim time but no flight time: 2024-10-08 ("semiannual", 4.0 h) and
-  2025-01-13 ("Sim recurrent", 4.0 h). Proposal: credit 4.0 h flight time to each, adding 8.0 h.
+  2025-01-13 ("Sim recurrent", 4.0 h). **Confirmed:** credit 4.0 h flight time to each, adding 8.0 h.
 - Two AW139 sessions have flight time but no sim duration: 2017-02-11 and 2022-08-17 (2.0 h each).
-  Proposal: fill in the sim duration.
+  **Confirmed:** fill in the sim duration (2.0 h each).
 - Five Generic ATC-810 sessions from 1997/2001 (10.3 h) have sim time only. The ATC-810 is a basic
-  instrument trainer, not a Level D device, so the proposal is to keep these as sim-only. Awaiting confirmation.
+  instrument trainer, not a Level D device, **Confirmed:** keep these as sim time only, with no flight time.
+- Resulting flight-time total: **9,994.7 h** (before any duplicate removal).
 
 ## 9. Open questions
 
