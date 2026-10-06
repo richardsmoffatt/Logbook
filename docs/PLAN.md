@@ -116,7 +116,23 @@ map of places flown.
 2. Data review session with the owner, so we can fix or confirm the items in section 3.
 3. CRUD UI, then reports, then the PDF logbook. A usable build is delivered after each step.
 
-## 8. Open questions
+## 8. Decisions log
+
+| # | Decision | Date |
+|---|---|---|
+| D1 | The source `DURATION_BLOCK` column is **flight time**. It imports as `flight_time`, and the app labels the main column "Flight time", not "Block". | 2026-10-06 |
+| D2 | Level D full-flight-simulator time **counts as flight time** and is included in totals. The sim session is still recorded (device + level) so it can be reported separately when needed. | 2026-10-06 |
+| D3 | Duplicates (finding 1): the owner is checking them. Leave as-is and flag them until we hear back. | 2026-10-06 (pending) |
+
+Effect of D2 on the data:
+- Two AW139 Level D sessions have sim time but no flight time: 2024-10-08 ("semiannual", 4.0 h) and
+  2025-01-13 ("Sim recurrent", 4.0 h). Proposal: credit 4.0 h flight time to each, adding 8.0 h.
+- Two AW139 sessions have flight time but no sim duration: 2017-02-11 and 2022-08-17 (2.0 h each).
+  Proposal: fill in the sim duration.
+- Five Generic ATC-810 sessions from 1997/2001 (10.3 h) have sim time only. The ATC-810 is a basic
+  instrument trainer, not a Level D device, so the proposal is to keep these as sim-only. Awaiting confirmation.
+
+## 9. Open questions
 
 See the conversation, or the copy below, which we will update as answers come in.
 
