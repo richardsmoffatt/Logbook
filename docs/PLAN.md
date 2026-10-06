@@ -1,0 +1,127 @@
+# Pilot Logbook App — Plan (draft v0.1)
+
+Status: **draft, awaiting answers to the open questions in section 8.**
+
+## 1. Goals
+
+1. Import the existing FLYLOG export (≈10,000 hrs, 4,044 entries, 1992 → present) losslessly.
+2. Add, edit, and delete flights quickly, on desktop and on a phone/tablet.
+3. Produce reports for any date range (totals, by type/role/condition, currency, experience summaries).
+4. Produce printable logbooks (PDF) in a chosen layout, with page totals and brought-forward totals.
+5. Helicopter only at first, with the data model ready for fixed-wing later.
+
+## 2. What the source file contains
+
+| Item | Value |
+|---|---|
+| Entries | 4,044 |
+| Date range | 1992-05-19 → 2026-10-05 (no entries in 1994) |
+| Block total | 9,986.7 h, of which 292.5 h is on `SIM` rows, leaving **≈9,694.2 h aircraft** |
+| PIC / PICUS / SIC / Dual / Instructor | 6,350.7 / 100.5 / 3,139.2 / 444.2 / 291.2 |
+| Night / IFR (actual + simulated) / XC | 973.0 / 781.7 (588.2 + 151.8) / 68.1 |
+| Multi-pilot | 9,248.6 |
+| Simulator (`DURATION_SIMULATOR`) | 306.8 h over 129 sessions |
+| Landings day / night | 13,072 / 1,260 |
+
+Hours by type: S76 5,041.6 · A139 3,741.9 · R22 488.5 · SIM 292.5 · A109 193.0 · B06 118.0 · B47G 86.5 · AS55 23.8 · AS50 0.9
+
+Columns that are always empty in the export: `TIME_BLOCK_END`, `PERSONAL_NOTE`, `NAME_PICUS`,
+`NAME_ATTENDANT`, `TIME_TAKEOFF`, `TIME_LANDING`, `TIME_DUTY_*`, `DURATION_DUTY`, `DURATION_EXAMINER`,
+`FLIGHT_NUMBER`. `TIME_BLOCK_START` is `00:00` on 3,942 rows, which looks like a placeholder.
+
+## 3. Data-quality findings (to confirm with the owner)
+
+1. **Exact duplicates:** 6 rows are exact copies of another row (2001-02-13 VH-HBY, 2009-05-06/07/12
+   B-MHG/B-MHF/B-KCC/B-MHH, 2015-02-20 AW139 sim). They are likely double entries worth about 13.8 h.
+2. **Sim time counted as flight time:** 122 of the 131 `SIM` rows also have `DURATION_BLOCK` and
+   PIC/SIC/Dual filled in, so the 9,986.7 block total includes sim time.
+3. **Sims that may be logged as aircraft:** registration `AUH139` is on type `A139` with routes such
+   as KLGA→KEWR and LIRU→LIRA ("Hot and heavy training"). These look like sim sessions.
+4. **Two roles on one flight:** 26 rows credit the full block time to both PIC and Dual (or PIC and
+   SIC). Examples: 1992-06-10 R22, 2002–2004 S76 Songkhla/Yangon training, and the 2008-09 sim sorties.
+5. **NVG column has mixed units:** most values are milliseconds (3,600,000 = 1.0 h), about 45.0 h in
+   total. Six rows hold small integers (3, 4, 5), which could be NVG landings or hours. Separately,
+   20 rows have an `NVG` tag.
+6. **`SHIPS` column:** this looks like a count of deck landings (207 in total, mostly A109).
+7. **IFR breakdown:** on 37 rows, IFR ≠ IFR actual + IFR simulated.
+8. **Night time without night landings:** 212 flights. This matters for night-currency calculations.
+9. **Non-ICAO location codes:** EZULU, HAZZA, RYRPA, QCOL, QLFD, YUOF, etc. These are probably rigs,
+   ships, or HLS sites, so we need a "places" table with names and optional coordinates.
+10. **Non-standard registrations:** LIW08–LIW99 (fleet/serial numbers?), and sim "registrations"
+    such as AW139, S76, AW109GRANDNEW, ATC810. Two sim rows have no registration.
+
+Proposed handling: the importer keeps every raw value unchanged in an `import_raw` record. It then
+writes normalised values and attaches a **review flag** to each row with a problem, and the app gets
+a "Review imported data" screen. Nothing is changed or deleted without the owner's approval.
+
+## 4. Proposed architecture (subject to Q1–Q3)
+
+- **Front end:** React + TypeScript, built as an installable PWA (works offline on iPad, phone, laptop).
+- **Storage:** SQLite. Either local-first in the browser (with backup/export) or a small hosted
+  backend with sync (see Q2).
+- **Time storage:** integer minutes. Display as decimal hours (one decimal place) or HH:MM per user setting.
+- **PDF output:** generated server-side or in the browser with a print-layout engine. Also CSV/XLSX export.
+- **Tests:** the importer is verified against the totals in section 2, so we can prove nothing was lost.
+
+## 5. Data model (first cut)
+
+- `flight`: date, departure, arrival, route (via points), aircraft_id, block off/on (optional),
+  total, role times (PIC, PICUS, SIC, dual, instructor, examiner), condition times (night, IFR actual,
+  IFR simulated, XC, NVG, multi-pilot), takeoffs/landings (day, night, NVG, deck), approaches
+  (type + count), crew names, remarks, tags, sim session link
+- `aircraft`: registration, type
+- `aircraft_type`: ICAO designator, make/model, **category (helicopter / aeroplane)**, engine count,
+  engine type (piston/turbine), single/multi-pilot certification, class/type-rating group
+- `sim_session`: device type (FFS/FTD/FNPT), device ID, qualification level. Kept separate from
+  aircraft time.
+- `place`: code, name, kind (aerodrome / HLS / rig / ship), coordinates (optional)
+- `person`: crew names, normalised for spelling variants
+- `tag`: free tags (NVG, OFFSHORE, FORMATION, MPT, PF/PM, …)
+
+Initial type table (please check):
+
+| Type | Category | Engines | Power | Ops |
+|---|---|---|---|---|
+| R22 | Helicopter | Single | Piston | SP |
+| B47G | Helicopter | Single | Piston | SP |
+| B06 | Helicopter | Single | Turbine | SP |
+| AS50 (AS350) | Helicopter | Single | Turbine | SP |
+| AS55 (AS355) | Helicopter | Twin | Turbine | SP/MP |
+| A109 | Helicopter | Twin | Turbine | MP |
+| S76 | Helicopter | Twin | Turbine | MP |
+| A139 (AW139) | Helicopter | Twin | Turbine | MP |
+
+## 6. Features by phase
+
+**Phase 1: foundation.** Importer with review screen, flight list with search/filter, add/edit
+flight form (defaults from last flight, crew/place autocomplete, quick-add buttons), aircraft and
+place management, backup/export.
+
+**Phase 2: reports.** Totals for any date range; grouping by type, registration, role, condition,
+year, or month; currency dashboard (day/night landings in 90 days, NVG, deck, IFR/approaches);
+flight-time limits (28 days, 90 days, 12 months, calendar year); experience summary for CVs and
+job applications; and CSV/XLSX/PDF output.
+
+**Phase 3: printable logbooks.** Paginated PDF logbook in the chosen regulator layout, with page
+totals, brought-forward totals, and a certification/signature block. Also a summary page per
+licence application.
+
+**Phase 4: extras.** Fixed-wing support (SEP/MEP/class ratings), automatic night calculation from
+block times and coordinates, documents (medical, licence, rating expiries with reminders), and a
+map of places flown.
+
+## 7. Milestones
+
+1. Repository scaffold plus the importer, with tests that match the source totals exactly.
+2. Data review session with the owner, so we can fix or confirm the items in section 3.
+3. CRUD UI, then reports, then the PDF logbook. A usable build is delivered after each step.
+
+## 8. Open questions
+
+See the conversation, or the copy below, which we will update as answers come in.
+
+- Q1 Devices/platform · Q2 Hosting and backup · Q3 Single or multiple users
+- Q4 Licensing authority(ies) and the logbook layout(s) to print
+- Q5 Reports needed (and for what purpose)
+- Q6 Decimal vs HH:MM; whether block times are logged for new flights
+- Q7–Q14 Data-quality items from section 3
