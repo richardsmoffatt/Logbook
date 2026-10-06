@@ -43,8 +43,10 @@ export default function Dashboard() {
         {TOTALS.map(([key, label], i) => (
           <div key={key} className={`tile ${i === 0 ? "tile-hero" : ""}`}>
             <div className="tile-label">{label}</div>
-            <div className="tile-value">{fmtHours(s.totals[key])}</div>
-            {i === 0 && <div className="tile-sub">hours</div>}
+            <div className="tile-value">
+              {fmtHours(s.totals[key])}
+              {i === 0 && <span className="tile-unit">hours</span>}
+            </div>
           </div>
         ))}
       </section>
