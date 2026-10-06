@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmtHours, Summary } from "../api";
 
+// Hero tile, then two rows of four (owner's layout): roles on top, conditions below. NVG is in reports.
 const TOTALS: [string, string][] = [
   ["flight_time", "Total flight time"],
   ["pic", "PIC"],
@@ -10,7 +11,6 @@ const TOTALS: [string, string][] = [
   ["instructor", "Instructor"],
   ["night", "Night"],
   ["ifr", "IFR"],
-  ["nvg", "NVG"],
   ["sim_time", "Simulator"],
 ];
 
@@ -39,11 +39,12 @@ export default function Dashboard() {
           {s.entries.toLocaleString()} entries · {s.first} to {s.last}
         </span>
       </div>
-      <section className="tiles">
+      <section className="tiles tiles-dash">
         {TOTALS.map(([key, label], i) => (
           <div key={key} className={`tile ${i === 0 ? "tile-hero" : ""}`}>
             <div className="tile-label">{label}</div>
             <div className="tile-value">{fmtHours(s.totals[key])}</div>
+            {i === 0 && <div className="tile-sub">hours</div>}
           </div>
         ))}
       </section>

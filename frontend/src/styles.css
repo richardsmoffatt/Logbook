@@ -124,6 +124,11 @@ button.link { background: none; border: none; padding: 0 2px; min-height: 0; col
 .tile-label { color: var(--muted); font-size: 12px; }
 .tile-value { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .tile-hero .tile-value { font-size: 32px; color: var(--accent); }
+.tiles-dash { grid-template-columns: minmax(240px, 1.5fr) repeat(4, minmax(0, 1fr)); }
+.tiles-dash .tile-hero { grid-column: 1; grid-row: span 2; display: flex; flex-direction: column; justify-content: center; padding: 18px 22px; }
+.tiles-dash .tile-hero .tile-label { font-size: 14px; font-weight: 600; }
+.tiles-dash .tile-hero .tile-value { font-size: 52px; line-height: 1.1; letter-spacing: -0.02em; }
+.tile-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .bars { display: grid; gap: 7px; }
 .bar-row { display: grid; grid-template-columns: 56px 1fr 70px; gap: 10px; align-items: center; }
 .bar-label { font-weight: 600; }
@@ -188,6 +193,9 @@ legend { font-weight: 700; padding-right: 8px; }
   .builder { position: static; max-height: none; }
   main { padding: 12px 16px; }
   .tile-hero { grid-column: span 1; }
+  .tiles-dash { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles-dash .tile-hero { grid-column: 1 / -1; grid-row: auto; }
+  .tiles-dash .tile-hero .tile-value { font-size: 40px; }
 }
 
 @media print {
