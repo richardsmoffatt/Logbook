@@ -30,7 +30,7 @@ def summary(conn, q=None):
     rows = conn.execute(f"""
         SELECT l.person, COUNT(*) AS flights, SUM({TIME}) AS minutes,
                SUM(f.pic) AS pic, SUM(f.picus) AS picus, SUM(f.sic) AS sic, SUM(f.dual) AS dual,
-               SUM(f.night) AS night, SUM(f.ifr_actual + f.ifr_sim) AS ifr, SUM(f.nvg) AS nvg,
+               SUM(f.night) AS night, SUM(f.ifr_actual + f.ifr_sim) AS ifr,
                SUM(f.is_sim) AS sims, MIN(f.date) AS first, MAX(f.date) AS last,
                GROUP_CONCAT(DISTINCT f.type_code) AS types
         FROM ({_LINKS}) l JOIN flight f ON f.id = l.flight_id {where}
@@ -42,7 +42,7 @@ def summary(conn, q=None):
     for r in rows:
         item = dict(r)
         item["hours"] = minutes_to_hours(item.pop("minutes"))
-        for k in ("pic", "picus", "sic", "dual", "night", "ifr", "nvg"):
+        for k in ("pic", "picus", "sic", "dual", "night", "ifr"):
             item[k] = minutes_to_hours(item[k])
         item["types"] = sorted((item["types"] or "").split(","))
         item["their_roles"] = roles.get(r["person"], {})

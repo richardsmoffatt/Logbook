@@ -76,7 +76,7 @@ export default function Dashboard() {
               {s.currency.map((c) => (
                 <tr key={c.label}>
                   <td>{c.label}</td>
-                  <td className="num">{c.label.includes("hours") ? fmtHours(c.last_90) : c.last_90}</td>
+                  <td className="num">{c.kind === "hours" ? fmtHours(c.last_90) : c.last_90}</td>
                   <td className="num muted">{c.last ?? "-"}</td>
                 </tr>
               ))}

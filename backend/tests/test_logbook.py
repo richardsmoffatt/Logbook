@@ -110,8 +110,8 @@ def test_flight_and_sim_rules(conn):
 def test_roles_nvg_ifr_ships(conn):
     assert total(conn, "pic") == pytest.approx(2.0 + 1.0 + 2.8)
     assert total(conn, "dual") == pytest.approx(0.2 + 1.5)          # split check + generic trainer
-    assert total(conn, "nvg") == pytest.approx(1.0)                  # small value ignored
-    assert total(conn, "ldg_ship") * 60 == 3
+    assert total(conn, "uh1") == pytest.approx(1.0)                  # NVG user field; small value ignored
+    assert total(conn, "un1") * 60 == 3                               # ship landings user field
     assert total(conn, "ifr_actual") == pytest.approx(1.0)           # 0.4 + unsplit 0.6
     assert total(conn, "ifr_sim") == pytest.approx(2.0)
     split = conn.execute("SELECT flight_time, ldg_day, name_instructor FROM flight WHERE date = '2020-03-01' "
@@ -146,7 +146,7 @@ def client(tmp_path, export):
 
 
 NEW = {"date": "2026-10-06", "dep": "omnk", "arr": "OMNK", "type_code": "A139", "registration": "LIW18",
-       "flight_time": 1.4, "pic": 1.4, "night": 0.5, "ifr_actual": 0.3, "ldg_day": 2, "ldg_ship": 1,
+       "flight_time": 1.4, "pic": 1.4, "night": 0.5, "ifr_actual": 0.3, "ldg_day": 2, "un1": 1,
        "pf_pm": "PM", "name_pic": "SELF", "remarks": "Test"}
 
 
@@ -180,7 +180,7 @@ def test_flight_validation(client, changes, message):
 
 def test_report_summary_grouped(client):
     spec = {"filters": {"date_from": "2020-01-01", "date_to": "2020-12-31"}, "group_by": ["type_code"],
-            "columns": ["count", "flight_time", "sim_time", "ldg_ship"]}
+            "columns": ["count", "flight_time", "sim_time", "un1"]}
     res = client.post("/api/reports/run", json=spec).json()
     rows = {r[0]: r[1:] for r in res["rows"]}
     assert rows["A139"] == [3, 8.0, 6.0, 3]
@@ -220,7 +220,8 @@ def test_summary_and_meta(client):
     s = client.get("/api/summary", params={"today": "2020-03-15"}).json()
     assert s["totals"]["flight_time"] == 12.5
     assert s["periods"][1] == {"label": "Last 90 days", "hours": 12.5}
-    assert s["currency"][2]["last_90"] == 3                         # ship landings
+    cur = {c["label"]: c["last_90"] for c in s["currency"]}
+    assert cur["Ship landings"] == 3 and cur["NVG hours"] == 1.0      # user fields appear automatically
     meta = client.get("/api/meta").json()
     assert "Instructor A" in meta["names"] and "SELF" not in meta["names"]
     assert {p["code"] for p in meta["places"]} >= {"OMNK", "RIG1"}
@@ -269,3 +270,62 @@ def test_people_rename_merges(client):
     a = {p["person"]: p for p in client.get("/api/people").json()}["Instructor A"]
     assert a["flights"] == 2 and a["their_roles"]["Co-pilot"] == 1
     assert client.post("/api/people/rename", json={"from": "Instructor A", "to": " "}).status_code == 422
+
+
+def test_report_uses_user_field_names(client):
+    res = client.post("/api/reports/run", json={"group_by": ["type_code"], "columns": ["uh1", "un1"],
+                                                "filters": {"conditions": ["un1"]}}).json()
+    assert [h["label"] for h in res["headers"]] == ["Type", "NVG", "Ship landings"]
+    assert res["rows"] == [["A139", 1.0, 3]]
+
+
+def test_custom_fields_add_rename_remove(client):
+    listing = client.get("/api/custom-fields").json()
+    assert [(f["slot"], f["label"], f["kind"], f["total"]) for f in listing] == \
+        [("uh1", "NVG", "hours", 1.0), ("un1", "Ship landings", "number", 3)]
+    r = client.post("/api/custom-fields", json={"label": "Hoist cycles", "kind": "number"})
+    assert r.status_code == 201 and r.json()["slot"] == "un2"
+    assert client.post("/api/custom-fields", json={"label": "nvg", "kind": "hours"}).status_code == 422  # duplicate
+    # New field is usable on an entry, validated under its own name, and reported
+    assert client.post("/api/flights", json={**NEW, "un2": 4}).status_code == 201
+    r = client.post("/api/flights", json={**NEW, "uh1": 9.0})
+    assert "NVG cannot exceed the entry's total time." in r.json()["detail"]["errors"]
+    meta = client.get("/api/meta").json()
+    assert {"key": "un2", "label": "Hoist cycles", "kind": "count"} in meta["metrics"]
+    assert not any(m["key"] == "un3" for m in meta["metrics"])        # unused slots stay hidden
+    assert client.put("/api/custom-fields/un2", json={"label": "Hoist lifts"}).json()["label"] == "Hoist lifts"
+    assert client.delete("/api/custom-fields/un2").json() == {"cleared": 1}
+    assert client.delete("/api/custom-fields/flight_time").status_code == 422   # only user slots
+
+
+def test_custom_fields_limit_of_five(client):
+    for i in range(2, 6):
+        assert client.post("/api/custom-fields", json={"label": f"H{i}", "kind": "hours"}).status_code == 201
+    r = client.post("/api/custom-fields", json={"label": "H6", "kind": "hours"})
+    assert r.status_code == 422 and "5 hours fields" in r.json()["detail"]["errors"][0]
+    assert client.post("/api/custom-fields", json={"label": "N2", "kind": "number"}).status_code == 201
+
+
+def test_migration_moves_nvg_and_ships(tmp_path):
+    """A database from before user fields keeps its NVG and ship landings, with a backup made first."""
+    import sqlite3
+    # A v0 database: today's schema with the old NVG/ship columns instead of the user slots
+    path2 = tmp_path / "v0.db"
+    schema = db.SCHEMA
+    for slot in ["uh1", "uh2", "uh3", "uh4", "uh5", "un1", "un2", "un3", "un4", "un5"]:
+        schema = schema.replace(f"    {slot} INTEGER NOT NULL DEFAULT 0,\n", "")
+    schema = schema.replace("approach_type TEXT,", "nvg INTEGER NOT NULL DEFAULT 0, ldg_ship INTEGER NOT NULL DEFAULT 0, approach_type TEXT,")
+    v0 = sqlite3.connect(path2)
+    v0.executescript(schema.replace("CREATE TABLE IF NOT EXISTS custom_field", "CREATE TABLE IF NOT EXISTS unused_v0"))
+    v0.execute("DROP TABLE unused_v0")
+    v0.execute("INSERT INTO flight (date, type_code, flight_time, pic, nvg, ldg_ship) VALUES ('2020-01-01', 'A139', 60, 60, 30, 2)")
+    v0.commit(); v0.close()
+    conn = db.connect(str(path2))
+    row = conn.execute("SELECT uh1, un1 FROM flight").fetchone()
+    assert tuple(row) == (30, 2)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(flight)")}
+    assert "nvg" not in cols and "ldg_ship" not in cols
+    assert [tuple(r) for r in conn.execute("SELECT slot, label FROM custom_field")] == [("uh1", "NVG"), ("un1", "Ship landings")]
+    assert list(tmp_path.glob("v0.db.before-user-fields-*"))           # backup copy kept
+    db.connect(str(path2))                                              # second open is a no-op
+    assert tuple(conn.execute("SELECT uh1, un1 FROM flight").fetchone()) == (30, 2)

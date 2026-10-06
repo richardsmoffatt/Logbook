@@ -7,15 +7,15 @@ const DEFAULT_DETAIL = ["date", "dep", "arr", "type_code", "registration", "flig
 
 const TEMPLATES: { name: string; spec: ReportSpec }[] = [
   { name: "Totals by year", spec: { mode: "summary", filters: {}, group_by: ["year"],
-    columns: ["count", "flight_time", "pic", "picus", "sic", "dual", "night", "ifr", "nvg"] } },
+    columns: ["count", "flight_time", "pic", "picus", "sic", "dual", "night", "ifr", "uh1"] } },
   { name: "Hours by type", spec: { mode: "summary", filters: {}, group_by: ["type_code"],
-    columns: ["count", "flight_time", "pic", "picus", "sic", "dual", "instructor", "night", "ifr", "nvg", "multi_pilot", "landings"] } },
+    columns: ["count", "flight_time", "pic", "picus", "sic", "dual", "instructor", "night", "ifr", "uh1", "multi_pilot", "landings"] } },
   { name: "Experience summary (CV)", spec: { mode: "summary", filters: { kind: "flight_time" }, group_by: ["engines", "power"],
-    columns: ["flight_time", "pic", "sic", "multi_pilot", "night", "ifr_actual", "nvg", "ldg_ship"] } },
+    columns: ["flight_time", "pic", "sic", "multi_pilot", "night", "ifr_actual", "uh1", "un1"] } },
   { name: "Simulator sessions", spec: { mode: "detail", filters: { kind: "sim" },
     group_by: [], columns: ["date", "sim_device", "sim_level", "registration", "sim_time", "flight_time", "pic", "picus", "sic", "dual", "ifr_sim", "remarks"] } },
   { name: "Last 12 months, by month", spec: { mode: "summary", filters: { date_from: shift(365) }, group_by: ["month"],
-    columns: ["count", "flight_time", "night", "ifr", "nvg", "landings", "ldg_ship"] } },
+    columns: ["count", "flight_time", "night", "ifr", "uh1", "landings", "un1"] } },
   { name: "Flights by registration", spec: { mode: "summary", filters: {}, group_by: ["type_code", "registration"],
     columns: ["count", "flight_time"] } },
 ];
@@ -35,8 +35,8 @@ const PRESETS: [string, () => [string, string]][] = [
   ["Last 28 days", () => [shift(28), today()]],
 ];
 
-const CONDITIONS = [["night", "Night"], ["ifr", "IFR"], ["nvg", "NVG"], ["multi_pilot", "Multi-pilot"],
-  ["xc", "Cross-country"], ["ldg_ship", "Ship landings"]];
+// Built-in conditions; every user-defined field is added after these
+const CONDITIONS = [["night", "Night"], ["ifr", "IFR"], ["multi_pilot", "Multi-pilot"], ["xc", "Cross-country"]];
 
 function Chips({ options, value, onChange }: { options: { key: string; label: string }[]; value: string[];
   onChange: (v: string[]) => void }) {
@@ -78,7 +78,12 @@ export default function Reports({ meta }: { meta: Meta }) {
   const setFilter = (k: string, v: unknown) => setSpec({ ...spec, filters: { ...f, [k]: v } });
   const setMode = (mode: "summary" | "detail") =>
     setSpec({ ...spec, mode, columns: mode === "detail" ? DEFAULT_DETAIL : DEFAULT_SUMMARY, group_by: mode === "detail" ? [] : spec.group_by });
-  const load = (name: string, s: ReportSpec) => { setSpec(s); setTitle(name); };
+  const load = (name: string, s: ReportSpec) => {
+    // Templates may name user fields that have since been removed; keep only columns that exist
+    const known = new Set([...meta.metrics, ...meta.fields].map((m) => m.key));
+    setSpec({ ...s, columns: s.columns.filter((c) => known.has(c)) });
+    setTitle(name);
+  };
 
   const columnOptions = useMemo(() => spec.mode === "summary" ? meta.metrics :
     [...meta.fields.filter((x) => !["is_sim", "off_time", "on_time"].includes(x.key)),
@@ -177,7 +182,8 @@ export default function Reports({ meta }: { meta: Meta }) {
         <Chips options={[...meta.roles, { key: "instructor", label: "Instructor" }, { key: "examiner", label: "Examiner" }]}
           value={f.roles ?? []} onChange={(v) => setFilter("roles", v)} />
         <span className="sub">Only entries with</span>
-        <Chips options={CONDITIONS.map(([key, label]) => ({ key, label }))} value={f.conditions ?? []}
+        <Chips options={[...CONDITIONS.map(([key, label]) => ({ key, label })),
+          ...meta.custom_fields.map((c) => ({ key: c.slot, label: c.label }))]} value={f.conditions ?? []}
           onChange={(v) => setFilter("conditions", v)} />
         <div className="row2">
           <label className="stack"><span>PF/PM</span>

@@ -2,7 +2,9 @@
 import datetime
 import re
 
-from .fields import COUNTS, DURATIONS, FIELD_KIND, FIELD_LABEL, FIELD_NAMES, ROLE_LABEL, ROLES, \
+from . import custom
+
+from .fields import COUNTS, CUSTOM_HOURS, DURATIONS, FIELD_KIND, FIELD_LABEL, FIELD_NAMES, ROLE_LABEL, ROLES, \
     hours_to_minutes, minutes_to_hours
 
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -45,8 +47,10 @@ def to_api(row):
     return out
 
 
-def validate(row):
-    """Return a list of human-readable problems with a storage-format flight (empty = valid)."""
+def validate(row, labels=None):
+    """Return a list of human-readable problems with a storage-format flight (empty = valid).
+    labels: names of the owner's user fields, so messages use them."""
+    label = {**FIELD_LABEL, **(labels or {})}
     errors = []
     try:
         datetime.date.fromisoformat(row.get("date") or "")
@@ -56,10 +60,10 @@ def validate(row):
         errors.append("Aircraft type is required.")
     for name in DURATIONS + COUNTS:
         if (row.get(name) or 0) < 0:
-            errors.append(f"{FIELD_LABEL[name]} cannot be negative.")
+            errors.append(f"{label[name]} cannot be negative.")
     for name in ("off_time", "on_time"):
         if row.get(name) and not _TIME.match(row[name]):
-            errors.append(f"{FIELD_LABEL[name]} must be HH:MM.")
+            errors.append(f"{label[name]} must be HH:MM.")
     if row.get("pf_pm") not in (None, "PF", "PM"):
         errors.append("PF/PM must be PF, PM or blank.")
 
@@ -83,9 +87,9 @@ def validate(row):
             errors.append(f"{ROLE_LABEL[logged[0]]} time must equal flight time.")
 
     total = flight or sim
-    for name in ("instructor", "examiner", "night", "xc", "multi_pilot", "nvg"):
+    for name in ("instructor", "examiner", "night", "xc", "multi_pilot", *CUSTOM_HOURS):
         if (row.get(name) or 0) > total:
-            errors.append(f"{FIELD_LABEL[name]} cannot exceed the entry's total time.")
+            errors.append(f"{label[name]} cannot exceed the entry's total time.")
     if (row.get("ifr_actual") or 0) + (row.get("ifr_sim") or 0) > total:
         errors.append("IFR (actual + simulated) cannot exceed the entry's total time.")
     if row.get("approaches") and not row.get("approach_type"):
@@ -110,7 +114,7 @@ def _complete(row):
 
 def insert(conn, row, commit=True):
     row = _complete(row)
-    errors = validate(row)
+    errors = validate(row, custom.labels(conn))
     if errors:
         raise ValidationError(errors)
     cols = FIELD_NAMES + ["source_row"]
@@ -127,7 +131,7 @@ def update(conn, flight_id, changes):
         return None
     row = {name: current[name] for name in FIELD_NAMES}
     row.update(changes)
-    errors = validate(row)
+    errors = validate(row, custom.labels(conn))
     if errors:
         raise ValidationError(errors)
     sets = ", ".join(f"{c} = ?" for c in FIELD_NAMES)

@@ -8,8 +8,8 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import db, flights, importer, people, reports
-from .fields import DIMENSIONS, FLIGHT_FIELDS, METRICS, ROLE_LABEL, minutes_to_hours
+from . import custom, db, flights, importer, people, reports
+from .fields import CUSTOM_SLOTS, DIMENSIONS, FLIGHT_FIELDS, METRICS, ROLE_LABEL, minutes_to_hours
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "data" / "logbook.db"
@@ -71,13 +71,18 @@ def create_app(db_path=None):
     # ---- reference data ------------------------------------------------------------------
     @app.get("/api/meta")
     def meta():
+        labels = custom.labels(conn)
         distinct = lambda sql: [r[0] for r in conn.execute(sql) if r[0]]
         names = distinct("SELECT name_pic FROM flight UNION SELECT name_copilot FROM flight "
                          "UNION SELECT name_instructor FROM flight UNION SELECT name_student FROM flight "
                          "UNION SELECT name_examiner FROM flight")
         return {
-            "fields": [{"key": k, "label": l, "kind": t} for k, l, t in FLIGHT_FIELDS],
-            "metrics": [{"key": k, "label": v[0], "kind": v[1]} for k, v in METRICS.items()],
+            # User-field slots appear only when defined, under the owner's names
+            "fields": [{"key": k, "label": labels.get(k, l), "kind": t} for k, l, t in FLIGHT_FIELDS
+                       if k not in CUSTOM_SLOTS or k in labels],
+            "metrics": [{"key": k, "label": labels.get(k, v[0]), "kind": v[1]} for k, v in METRICS.items()
+                        if k not in CUSTOM_SLOTS or k in labels],
+            "custom_fields": custom.active(conn),
             "dimensions": [{"key": k, "label": v[0]} for k, v in DIMENSIONS.items()],
             "roles": [{"key": k, "label": v} for k, v in ROLE_LABEL.items()],
             "types": [dict(r) for r in conn.execute("SELECT * FROM aircraft_type ORDER BY code")],
@@ -130,6 +135,29 @@ def create_app(db_path=None):
         conn.commit()
         return dict(conn.execute("SELECT * FROM place WHERE code = ?", (code,)).fetchone())
 
+    # ---- user-defined fields -------------------------------------------------------------
+    def custom_call(fn, *args):
+        try:
+            return fn(conn, *args)
+        except custom.CustomFieldError as e:
+            raise HTTPException(422, detail={"errors": [str(e)]})
+
+    @app.get("/api/custom-fields")
+    def list_custom():
+        return custom.listing(conn)
+
+    @app.post("/api/custom-fields", status_code=201)
+    def add_custom(data: dict = Body(...)):
+        return custom_call(custom.add, data.get("label"), data.get("kind"))
+
+    @app.put("/api/custom-fields/{slot}")
+    def rename_custom(slot: str, data: dict = Body(...)):
+        return custom_call(custom.rename, slot, data.get("label"))
+
+    @app.delete("/api/custom-fields/{slot}")
+    def delete_custom(slot: str):
+        return {"cleared": custom_call(custom.remove, slot)}
+
     # ---- people --------------------------------------------------------------------------
     @app.get("/api/people")
     def list_people(q: str = None):
@@ -156,28 +184,29 @@ def create_app(db_path=None):
         since = lambda days: (day - datetime.timedelta(days=days)).isoformat()
         q = lambda sql, *a: conn.execute(sql, a).fetchone()
         tot = q("SELECT COUNT(*), SUM(flight_time), SUM(sim_time), SUM(pic), SUM(picus), SUM(sic), SUM(dual), "
-                "SUM(instructor), SUM(night), SUM(ifr_actual + ifr_sim), SUM(nvg), MIN(date), MAX(date) FROM flight")
-        keys = ["flight_time", "sim_time", "pic", "picus", "sic", "dual", "instructor", "night", "ifr", "nvg"]
-        totals = {k: minutes_to_hours(v) for k, v in zip(keys, tot[1:11])}
+                "SUM(instructor), SUM(night), SUM(ifr_actual + ifr_sim), MIN(date), MAX(date) FROM flight")
+        keys = ["flight_time", "sim_time", "pic", "picus", "sic", "dual", "instructor", "night", "ifr"]
+        totals = {k: minutes_to_hours(v) for k, v in zip(keys, tot[1:10])}
         periods = []
         for label, start in (("Last 28 days", since(28)), ("Last 90 days", since(90)),
                              ("Last 12 months", since(365)), (f"{day.year} to date", f"{day.year}-01-01")):
             r = q("SELECT SUM(flight_time) FROM flight WHERE date > ? AND date <= ?", start, day.isoformat())
             periods.append({"label": label, "hours": minutes_to_hours(r[0])})
-        cur = q("SELECT SUM(ldg_day), SUM(ldg_night), SUM(ldg_ship), SUM(nvg), SUM(approaches) "
-                "FROM flight WHERE date > ? AND date <= ?", since(90), day.isoformat())
+        # Last 90 days: landings, approaches and every user field (hours or number)
+        rows = [("ldg_day", "Day landings", "number"), ("ldg_night", "Night landings", "number"),
+                ("approaches", "Instrument approaches", "number")]
+        rows += [(f["slot"], f["label"] + (" hours" if f["kind"] == "hours" and "hour" not in f["label"].lower() else ""),
+                  f["kind"]) for f in custom.active(conn)]
+        cur = q(f"SELECT {', '.join(f'SUM({c})' for c, _, _ in rows)} FROM flight WHERE date > ? AND date <= ?",
+                since(90), day.isoformat())
         last = lambda col: q(f"SELECT MAX(date) FROM flight WHERE {col} > 0")[0]
-        currency = [
-            {"label": "Day landings", "last_90": cur[0] or 0, "last": last("ldg_day")},
-            {"label": "Night landings", "last_90": cur[1] or 0, "last": last("ldg_night")},
-            {"label": "Ship landings", "last_90": cur[2] or 0, "last": last("ldg_ship")},
-            {"label": "NVG hours", "last_90": minutes_to_hours(cur[3]), "last": last("nvg")},
-            {"label": "Instrument approaches", "last_90": cur[4] or 0, "last": last("approaches")},
-        ]
+        currency = [{"label": label, "kind": kind,
+                     "last_90": minutes_to_hours(v) if kind == "hours" else (v or 0), "last": last(col)}
+                    for (col, label, kind), v in zip(rows, cur)]
         by_type = [dict(type_code=r[0], hours=minutes_to_hours(r[1]), last=r[2]) for r in conn.execute(
             "SELECT type_code, SUM(flight_time), MAX(date) FROM flight GROUP BY type_code "
             "HAVING SUM(flight_time) > 0 ORDER BY 2 DESC")]
-        return {"entries": tot[0], "first": tot[11], "last": tot[12], "totals": totals,
+        return {"entries": tot[0], "first": tot[10], "last": tot[11], "totals": totals,
                 "periods": periods, "currency": currency, "by_type": by_type, "as_of": day.isoformat()}
 
     # ---- reports -------------------------------------------------------------------------

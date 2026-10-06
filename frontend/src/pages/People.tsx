@@ -11,7 +11,6 @@ interface Person {
   dual: number;
   night: number;
   ifr: number;
-  nvg: number;
   sims: number;
   first: string;
   last: string;

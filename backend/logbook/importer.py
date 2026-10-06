@@ -10,7 +10,8 @@ The corrections file (JSON) holds personal data and lives outside the repository
     "sim_devices": {"AW-139": {"type": "A139", "level": "D"}, "Generic": {"type": "SIM"}},
     "sim_default_device": "Generic",   # device for sims with no SIMULATOR_TYPE
     "level_d_counts_as_flight_time": true,
-    "ifr_fill_split": true             # unsplit IFR -> actual (aircraft) / simulated (sim)
+    "ifr_fill_split": true,            # unsplit IFR -> actual (aircraft) / simulated (sim)
+    "user_fields": {"NVG": "uh1", "SHIPS": "un1"}   # FLYLOG column -> user field slot (these are the defaults)
   },
   "rows": [                            # row = Excel row number in the export; date guards against drift
     {"row": 26, "date": "1992-06-10", "role": "pic"},
@@ -27,7 +28,7 @@ import json
 import openpyxl
 
 from . import flights
-from .fields import DURATIONS, ROLES, hours_to_minutes
+from .fields import CUSTOM_NUMBERS, DURATIONS, ROLES, hours_to_minutes
 
 # FLYLOG column -> app field
 COLUMN_MAP = {
@@ -39,14 +40,15 @@ COLUMN_MAP = {
     "DURATION_INSTRUCTOR": "instructor", "DURATION_EXAMINER": "examiner", "DURATION_NIGHT": "night",
     "DURATION_IFR_ACTUAL": "ifr_actual", "DURATION_IFR_SIMULATED": "ifr_sim", "DURATION_XC": "xc",
     "DURATION_MULTI_PILOT": "multi_pilot",
-    "LDGS_DAY": "ldg_day", "LDGS_NIGHT": "ldg_night", "SHIPS": "ldg_ship",
+    "LDGS_DAY": "ldg_day", "LDGS_NIGHT": "ldg_night",
     "TAKEOFFS_DAY": "to_day", "TAKEOFFS_NIGHT": "to_night",
     "APPROACH_TYPE": "approach_type", "APPROACH_NR": "approaches",
     "NAME_PIC": "name_pic", "NAME_COPILOT": "name_copilot", "NAME_STUDENT": "name_student",
     "NAME_INSTRUCTOR": "name_instructor", "NAME_EXAMINER": "name_examiner",
     "REMARKS": "remarks", "TAGS": "tags",
 }
-COUNT_FIELDS = {"ldg_day", "ldg_night", "ldg_ship", "to_day", "to_night", "approaches"}
+COUNT_FIELDS = {"ldg_day", "ldg_night", "to_day", "to_night", "approaches"}
+DEFAULT_USER_FIELDS = {"NVG": "uh1", "SHIPS": "un1"}
 
 
 def _text(value):
@@ -93,13 +95,17 @@ def map_row(raw, rules):
     if row["approach_type"] and not row["approaches"]:
         row["approaches"] = 1
 
-    # NVG: milliseconds in FLYLOG; small integers are ignored (owner decision D15)
-    nvg = _number(raw.get("NVG"))
-    threshold = rules.get("nvg_ignore_below", 1000)
-    if rules.get("nvg_milliseconds"):
-        row["nvg"] = int(round(nvg / 60000)) if nvg >= threshold else 0
-    else:
-        row["nvg"] = hours_to_minutes(nvg)
+    # User fields (NVG hours, ship landings by default)
+    targets = rules.get("user_fields", DEFAULT_USER_FIELDS)
+    for column, slot in targets.items():
+        value = _number(raw.get(column))
+        if slot in CUSTOM_NUMBERS:
+            row[slot] = int(value)
+        elif column == "NVG" and rules.get("nvg_milliseconds"):
+            # NVG: milliseconds in FLYLOG; small integers are ignored (owner decision D15)
+            row[slot] = int(round(value / 60000)) if value >= rules.get("nvg_ignore_below", 1000) else 0
+        else:
+            row[slot] = hours_to_minutes(value)
 
     # Simulators
     is_sim = row["type_code"] == "SIM" or row["registration"] in rules.get("sim_registrations", []) \

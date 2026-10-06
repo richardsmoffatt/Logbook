@@ -51,6 +51,7 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
         meta={meta}
         flightId={edit === "new" ? null : edit}
         onCancel={close}
+        onMetaChange={onChange}
         onSaved={(stay) => {
           load();
           onChange();
@@ -98,7 +99,7 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
                 <td>{ROLE(f)}{f.pf_pm ? ` · ${f.pf_pm}` : ""}</td>
                 <td className="num">{f.night ? fmtHours(f.night) : ""}</td>
                 <td className="num">{f.ifr ? fmtHours(f.ifr) : ""}</td>
-                <td className="num">{f.ldg_day + f.ldg_night || ""}{f.ldg_ship ? ` (${f.ldg_ship}⚓)` : ""}</td>
+                <td className="num">{f.ldg_day + f.ldg_night || ""}</td>
                 <td className="ellipsis">{[f.name_pic, f.name_copilot].filter((n) => n && n !== "SELF").join(", ")}</td>
                 <td className="ellipsis">{f.remarks}</td>
               </tr>

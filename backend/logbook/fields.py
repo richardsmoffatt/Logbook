@@ -29,10 +29,8 @@ FLIGHT_FIELDS = [
     ("ifr_sim", "IFR simulated", "duration"),
     ("xc", "Cross-country", "duration"),
     ("multi_pilot", "Multi-pilot", "duration"),
-    ("nvg", "NVG", "duration"),
     ("ldg_day", "Landings day", "count"),
     ("ldg_night", "Landings night", "count"),
-    ("ldg_ship", "Ship landings", "count"),
     ("to_day", "Take-offs day", "count"),
     ("to_night", "Take-offs night", "count"),
     ("approach_type", "Approach type", "text"),
@@ -46,6 +44,14 @@ FLIGHT_FIELDS = [
     ("remarks", "Remarks", "text"),
     ("tags", "Tags", "text"),
 ]
+
+# User-defined fields: fixed storage slots, named and switched on by the owner (custom_field table).
+MAX_CUSTOM = 5
+CUSTOM_HOURS = [f"uh{i}" for i in range(1, MAX_CUSTOM + 1)]
+CUSTOM_NUMBERS = [f"un{i}" for i in range(1, MAX_CUSTOM + 1)]
+CUSTOM_SLOTS = CUSTOM_HOURS + CUSTOM_NUMBERS
+FLIGHT_FIELDS += [(s, f"User hours {s[2:]}", "duration") for s in CUSTOM_HOURS]
+FLIGHT_FIELDS += [(s, f"User number {s[2:]}", "count") for s in CUSTOM_NUMBERS]
 
 FIELD_NAMES = [f[0] for f in FLIGHT_FIELDS]
 FIELD_KIND = {f[0]: f[2] for f in FLIGHT_FIELDS}

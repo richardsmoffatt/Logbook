@@ -27,10 +27,8 @@ export interface Flight {
   ifr?: number;
   xc: number;
   multi_pilot: number;
-  nvg: number;
   ldg_day: number;
   ldg_night: number;
-  ldg_ship: number;
   to_day: number;
   to_night: number;
   approach_type: string | null;
@@ -43,7 +41,19 @@ export interface Flight {
   name_examiner: string | null;
   remarks: string | null;
   tags: string | null;
+  // User-defined fields: hours slots uh1-uh5, number slots un1-un5
+  uh1: number; uh2: number; uh3: number; uh4: number; uh5: number;
+  un1: number; un2: number; un3: number; un4: number; un5: number;
 }
+
+export interface CustomField {
+  slot: string;
+  label: string;
+  kind: "hours" | "number";
+  entries?: number;
+  total?: number;
+}
+export const MAX_CUSTOM = 5;
 
 export interface AircraftType {
   code: string;
@@ -78,6 +88,7 @@ export interface Meta {
   names: string[];
   sim_devices: string[];
   approach_types: string[];
+  custom_fields: CustomField[];
 }
 
 export interface ReportFilters {
@@ -115,7 +126,7 @@ export interface Summary {
   as_of: string;
   totals: Record<string, number>;
   periods: { label: string; hours: number }[];
-  currency: { label: string; last_90: number; last: string | null }[];
+  currency: { label: string; kind: "hours" | "number"; last_90: number; last: string | null }[];
   by_type: { type_code: string; hours: number; last: string }[];
 }
 

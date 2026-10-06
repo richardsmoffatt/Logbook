@@ -8,7 +8,8 @@ import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 
-from .fields import DIMENSIONS, FIELD_KIND, FIELD_LABEL, FIELD_NAMES, METRICS, ROLES, minutes_to_hours
+from . import custom
+from .fields import CUSTOM_SLOTS, DIMENSIONS, FIELD_KIND, FIELD_LABEL, FIELD_NAMES, METRICS, ROLES, minutes_to_hours
 
 
 class ReportError(ValueError):
@@ -37,7 +38,7 @@ def _where(filters):
     roles = [r for r in f.get("roles") or [] if r in ROLES + ["instructor", "examiner"]]
     if roles:
         where.append("(" + " OR ".join(f"f.{r} > 0" for r in roles) + ")")
-    conditions = [c for c in f.get("conditions") or [] if c in ("night", "ifr", "nvg", "xc", "multi_pilot", "ldg_ship")]
+    conditions = [c for c in f.get("conditions") or [] if c in ("night", "ifr", "xc", "multi_pilot", *CUSTOM_SLOTS)]
     for c in conditions:
         where.append("(f.ifr_actual + f.ifr_sim) > 0" if c == "ifr" else f"f.{c} > 0")
     if f.get("pf_pm") in ("PF", "PM"):
@@ -59,6 +60,7 @@ def _format(kind, value):
 def run(conn, spec):
     """spec: {filters, mode: summary|detail, group_by: [dim], columns: [metric or field]}"""
     mode = spec.get("mode", "summary")
+    names = {**FIELD_LABEL, **{k: v[0] for k, v in METRICS.items()}, **custom.labels(conn)}
     columns = spec.get("columns") or ["count", "flight_time"]
     where, args = _where(spec.get("filters"))
     base = "FROM flight f LEFT JOIN aircraft_type t ON t.code = f.type_code"
@@ -72,7 +74,7 @@ def run(conn, spec):
                            "f.ldg_day + f.ldg_night" if c == "landings" else f"f.{c}" for c in cols)
         rows = conn.execute(f"SELECT {select} {base} {where} ORDER BY f.date, f.id", args).fetchall()
         kinds = [METRICS[c][1] if c in ("ifr", "landings") else FIELD_KIND[c] for c in cols]
-        headers = [{"key": c, "label": METRICS[c][0] if c in ("ifr", "landings") else FIELD_LABEL[c], "kind": k}
+        headers = [{"key": c, "label": names[c], "kind": k}
                    for c, k in zip(cols, kinds)]
         out_rows = [[_format(k, v) if k in ("duration", "count") else v for k, v in zip(kinds, r)] for r in rows]
         totals = [_format(k, sum((r[i] or 0) for r in rows)) if k in ("duration", "count") else None
@@ -93,7 +95,7 @@ def run(conn, spec):
     total = conn.execute(f"SELECT {', '.join(aggs)} {base} {where}", args).fetchone()
     kinds = [METRICS[c][1] for c in columns]
     headers = [{"key": g, "label": DIMENSIONS[g][0], "kind": "text"} for g in group_by] + \
-              [{"key": c, "label": METRICS[c][0], "kind": k} for c, k in zip(columns, kinds)]
+              [{"key": c, "label": names[c], "kind": k} for c, k in zip(columns, kinds)]
     n = len(dims)
     out_rows = [list(r[:n]) + [_format(k, v) for k, v in zip(kinds, r[n:])] for r in rows]
     totals = (["Total"] + [None] * (n - 1) if n else []) + [_format(k, v) for k, v in zip(kinds, total)]

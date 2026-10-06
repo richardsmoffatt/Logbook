@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, backLabel, Flight, Meta, today } from "../api";
+import CustomFieldsDialog from "./CustomFieldsDialog";
 
 type Draft = Record<string, string | boolean>;
 const ROLES = ["pic", "picus", "sic", "dual"] as const;
 const ROLE_LABEL: Record<string, string> = { pic: "PIC", picus: "PICUS", sic: "SIC", dual: "Dual" };
+const USER_HOURS = ["uh1", "uh2", "uh3", "uh4", "uh5"];
+const USER_NUMBERS = ["un1", "un2", "un3", "un4", "un5"];
 const HOURS = ["flight_time", "sim_time", "instructor", "examiner", "night", "ifr_actual", "ifr_sim", "xc",
-  "multi_pilot", "nvg"];
-const COUNTS = ["ldg_day", "ldg_night", "ldg_ship", "to_day", "to_night", "approaches"];
+  "multi_pilot", ...USER_HOURS];
+const COUNTS = ["ldg_day", "ldg_night", "to_day", "to_night", "approaches", ...USER_NUMBERS];
 
 function toDraft(f: Partial<Flight>): Draft {
   const d: Draft = {};
@@ -36,13 +39,15 @@ interface Props {
   meta: Meta;
   flightId: number | null;
   onSaved: (stay: boolean) => void;
+  onMetaChange: () => void;
   onCancel: () => void;
 }
 
-export default function FlightForm({ meta, flightId, onSaved, onCancel }: Props) {
+export default function FlightForm({ meta, flightId, onSaved, onCancel, onMetaChange }: Props) {
   const [d, setD] = useState<Draft | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [managing, setManaging] = useState(false);
 
   useEffect(() => {
     setErrors([]);
@@ -107,9 +112,10 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel }: Props)
       if (flightId) await api.put(`/api/flights/${flightId}`, body);
       else await api.post("/api/flights", body);
       if (addAnother) {
-        setD({ ...d, id: "", remarks: "", flight_time: "", night: "", ifr_actual: "", ifr_sim: "", nvg: "", xc: "",
-          ldg_day: "", ldg_night: "", ldg_ship: "", to_day: "", to_night: "", approaches: "", approach_type: "",
-          multi_pilot: "", instructor: "", examiner: "", dep: d.arr });
+        setD({ ...d, id: "", remarks: "", flight_time: "", night: "", ifr_actual: "", ifr_sim: "", xc: "",
+          ldg_day: "", ldg_night: "", to_day: "", to_night: "", approaches: "", approach_type: "",
+          multi_pilot: "", instructor: "", examiner: "", dep: d.arr,
+          ...Object.fromEntries([...USER_HOURS, ...USER_NUMBERS].map((k) => [k, ""])) });
       }
       onSaved(addAnother);
     } catch (e) {
@@ -170,7 +176,7 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel }: Props)
             {field("sim_device", "Device", { list: "devices" })}
             <label>
               <span>Level</span>
-              <select value={String(d.sim_level)} onChange={(e) => set("sim_level", e.target.value)}>
+              <select value={String(d.sim_level ?? "")} onChange={(e) => set("sim_level", e.target.value)}>
                 <option value="">Other / not qualified</option>
                 <option value="D">Level D (counts as flight time)</option>
               </select>
@@ -186,7 +192,7 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel }: Props)
           {hours("flight_time", "Flight time")}
           <label>
             <span>Role</span>
-            <select value={String(d.role)} onChange={(e) => set("role", e.target.value)}>
+            <select value={String(d.role ?? "")} onChange={(e) => set("role", e.target.value)}>
               <option value="">—</option>
               {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
             </select>
@@ -202,14 +208,12 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel }: Props)
         </div>
         <div className="fields">
           <label><span>Night {quick("night")}</span>
-            <input type="number" step="0.1" min={0} value={String(d.night)} onChange={(e) => set("night", e.target.value)} /></label>
+            <input type="number" step="0.1" min={0} value={String(d.night ?? "")} onChange={(e) => set("night", e.target.value)} /></label>
           <label><span>IFR actual {quick("ifr_actual")}</span>
-            <input type="number" step="0.1" min={0} value={String(d.ifr_actual)} onChange={(e) => set("ifr_actual", e.target.value)} /></label>
+            <input type="number" step="0.1" min={0} value={String(d.ifr_actual ?? "")} onChange={(e) => set("ifr_actual", e.target.value)} /></label>
           {hours("ifr_sim", "IFR simulated")}
-          <label><span>NVG {quick("nvg")}</span>
-            <input type="number" step="0.1" min={0} value={String(d.nvg)} onChange={(e) => set("nvg", e.target.value)} /></label>
           <label><span>Multi-pilot {quick("multi_pilot")}</span>
-            <input type="number" step="0.1" min={0} value={String(d.multi_pilot)} onChange={(e) => set("multi_pilot", e.target.value)} /></label>
+            <input type="number" step="0.1" min={0} value={String(d.multi_pilot ?? "")} onChange={(e) => set("multi_pilot", e.target.value)} /></label>
           {hours("xc", "Cross-country")}
           {hours("instructor", "Instructor")}
           {hours("examiner", "Examiner")}
@@ -221,13 +225,33 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel }: Props)
         <div className="fields">
           {count("ldg_day", "Day landings")}
           {count("ldg_night", "Night landings")}
-          {count("ldg_ship", "Ship landings")}
           {count("to_day", "Day take-offs")}
           {count("to_night", "Night take-offs")}
           {field("approach_type", "Approach type", { list: "approaches" })}
           {count("approaches", "Approaches")}
         </div>
       </fieldset>
+
+      <fieldset>
+        <legend>
+          User-defined fields
+          <button type="button" className="link legend-action" onClick={() => setManaging(true)}>Manage fields…</button>
+        </legend>
+        {meta.custom_fields.length ? (
+          <div className="fields">
+            {meta.custom_fields.map((f) => f.kind === "hours" ? (
+              <label key={f.slot}><span>{f.label} {quick(f.slot)}</span>
+                <input type="number" step="0.1" min={0} value={String(d[f.slot] ?? "")}
+                  onChange={(e) => set(f.slot, e.target.value)} /></label>
+            ) : (
+              <label key={f.slot}><span>{f.label}</span>
+                <input type="number" step="1" min={0} value={String(d[f.slot] ?? "")}
+                  onChange={(e) => set(f.slot, e.target.value)} /></label>
+            ))}
+          </div>
+        ) : <p className="muted small">No user-defined fields. Use “Manage fields…” to add up to five hours and five number fields.</p>}
+      </fieldset>
+      {managing && <CustomFieldsDialog onClose={() => setManaging(false)} onChanged={onMetaChange} />}
 
       <fieldset>
         <legend>Crew &amp; remarks</legend>
