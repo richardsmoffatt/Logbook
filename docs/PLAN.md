@@ -133,6 +133,14 @@ map of places flown.
 | D11 | Add a PF/PM marker to each flight. **Landings are independent of PF/PM**: in helicopter operations the PM may fly the landing (e.g. because of the view on the approach), so landings can be logged on a PM flight. Every logged landing is a hands-on landing by the owner and **all of them count toward currency**. Imported flights have no PF/PM value (unknown). | 2026-10-06 |
 | D12 | The 37 IFR entries where total ≠ actual + simulated are under owner review (possibly VFR into IFR). The app will require IFR total = actual + simulated on entry. | 2026-10-06 (review pending) |
 
+| D13 | Two-role review done (31 entries). Each entry gets the single role the owner chose; the instructor name goes on the 4 S76 Dual entries from 2002–2004; the 2008-10-27 IMCPC is PIC + Instructor. One entry is open: 1998-03-28 B06 (5.2 h, "Dual Check & Joyflights"). | 2026-10-06 |
+| D14 | Duplicates: delete the 4 repeated 2009 S76 entries (9.8 h). Keep the 2001-02-13 B47G and 2015-02-20 sim pairs, which are genuine separate flights. | 2026-10-06 |
+| D15 | Ignore the small NVG values (3/4/5). NVG total = 45.0 h. | 2026-10-06 |
+| D16 | IFR: the owner's rule is IFR = actual + simulated. Waiting on a choice: either fill the unsplit remainder (actual on aircraft, simulated on sim; total stays 781.7 h) or drop it (total becomes 740.0 h). | 2026-10-06 (pending) |
+
+After D1–D15: **4,040 entries, flight time 9,984.9 h**, sim 334.8 h, PIC 6,291.4, PICUS 160.0, SIC 3,115.2,
+Dual 418.0, Instructor 292.1, NVG 45.0.
+
 Owner review file: `Logbook-Data-Review.xlsx`, generated from the export and not committed
 because it contains personal data. Tabs: Two roles (31), IFR mismatch (37), Duplicates (12 rows /
 6 pairs), NVG small values (6), AUH139 sim (11, for information).
