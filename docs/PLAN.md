@@ -54,14 +54,19 @@ Proposed handling: the importer keeps every raw value unchanged in an `import_ra
 writes normalised values and attaches a **review flag** to each row with a problem, and the app gets
 a "Review imported data" screen. Nothing is changed or deleted without the owner's approval.
 
-## 4. Proposed architecture (subject to Q1–Q3)
+## 4. Architecture (decided 2026-10-06)
 
-- **Front end:** React + TypeScript, built as an installable PWA (works offline on iPad, phone, laptop).
-- **Storage:** SQLite. Either local-first in the browser (with backup/export) or a small hosted
-  backend with sync (see Q2).
-- **Time storage:** integer minutes. Display as decimal hours (one decimal place) or HH:MM per user setting.
-- **PDF output:** generated server-side or in the browser with a print-layout engine. Also CSV/XLSX export.
-- **Tests:** the importer is verified against the totals in section 2, so we can prove nothing was lost.
+- **Runs locally on the owner's Linux laptop**, in the browser: a Python (FastAPI) server on
+  `localhost` plus a React + TypeScript single-page app. The data stays local in one SQLite
+  file, `data/logbook.db`.
+- **Later:** phone/iPad entry. Short term, run with `--host 0.0.0.0` on the home network. Longer
+  term, a hosted or sync option with log-in, which will also allow more than one user. The
+  server/browser split is chosen so this needs no rewrite.
+- Durations are stored as integer minutes and shown as decimal hours (D6).
+- Personal data (the export, the corrections file, the database) is never committed, **because the
+  repository is public**. Tests use synthetic data only.
+- Code layout: `backend/logbook/` (fields, db, flights, importer, reports, api); `frontend/src/`
+  (pages); `logbook.sh` (setup / serve / import / test).
 
 ## 5. Data model (first cut)
 
@@ -97,12 +102,22 @@ Initial type table (please check):
 flight form (defaults from last flight, crew/place autocomplete, quick-add buttons), aircraft and
 place management, backup/export.
 
+Status: **Phase 1 built (2026-10-06).** Done: importer with corrections and validation;
+flight list and search; add/edit/delete form that enforces the rules; aircraft types; places
+(name, kind, lat/long); backup download. Not yet done: an in-app review screen (corrections are
+currently a JSON file).
+
 **Phase 2: reports.** Totals for any date range; grouping by type, registration, role, condition,
 year, or month; currency dashboard (day/night landings in 90 days, NVG, deck, IFR/approaches);
 flight-time limits (28 days, 90 days, 12 months, calendar year); experience summary for CVs and
 job applications; and CSV/XLSX/PDF output.
 
-**Phase 3: printable logbooks.** Paginated PDF logbook in the chosen regulator layout, with page
+Status: **report builder built (2026-10-06).** It has date range and presets; Totals or Flight-list
+mode; up to two group-by levels; free choice of columns; filters (type, aircraft/sim, role,
+condition, PF/PM, place, text); templates; saved reports; and CSV, Excel and print output.
+Not yet done: currency rules per authority, and flight-time-limit checks.
+
+**Phase 3: printable logbooks.** Layouts for GCAA, EASA, CASA, FAA, UK CAA and Transport Canada. Paginated PDF logbook in the chosen regulator layout, with page
 totals, brought-forward totals, and a certification/signature block. Also a summary page per
 licence application.
 
@@ -133,7 +148,7 @@ map of places flown.
 | D11 | Add a PF/PM marker to each flight. **Landings are independent of PF/PM**: in helicopter operations the PM may fly the landing (e.g. because of the view on the approach), so landings can be logged on a PM flight. Every logged landing is a hands-on landing by the owner and **all of them count toward currency**. Imported flights have no PF/PM value (unknown). | 2026-10-06 |
 | D12 | The 37 IFR entries where total ≠ actual + simulated are under owner review (possibly VFR into IFR). The app will require IFR total = actual + simulated on entry. | 2026-10-06 (review pending) |
 
-| D13 | Two-role review done (31 entries). Each entry gets the single role the owner chose; the instructor name goes on the 4 S76 Dual entries from 2002–2004; the 2008-10-27 IMCPC is PIC + Instructor. On the 4-hour sims that were split PIC/SIC (2010, 2014, 2016, 2026), the whole session is PICUS (confirmed). The 1998-03-28 B06 entry (5.2 h) is split in two: 0.2 h Dual check with John Anderson, and 5.0 h PIC joyflights carrying all 4 landings. | 2026-10-06 |
+| D13 | Two-role review done (31 entries). Each entry gets the single role the owner chose; the instructor name goes on the 4 S76 Dual entries from 2002–2004; the 2008-10-27 IMCPC is PIC + Instructor. On the 4-hour sims that were split PIC/SIC (2010, 2014, 2016, 2026), the whole session is PICUS (confirmed). The 1998-03-28 B06 entry (5.2 h) is split in two: 0.2 h Dual check with the instructor, and 5.0 h PIC joyflights carrying all 4 landings. | 2026-10-06 |
 | D14 | Duplicates: delete the 4 repeated 2009 S76 entries (9.8 h). Keep the 2001-02-13 B47G and 2015-02-20 sim pairs, which are genuine separate flights. | 2026-10-06 |
 | D15 | Ignore the small NVG values (3/4/5). NVG total = 45.0 h. | 2026-10-06 |
 | D17 | Roles assigned to entries that had flight time but no role: 2012-03-04 A139 IMCPC → PIC; 2021-06-10 sim "Practice CAO82 Check" → PIC; 2025-01-13 sim → PICUS; 2026-04-15 sim → PICUS. Every flight-time entry now has exactly one role. | 2026-10-06 |
@@ -158,10 +173,8 @@ Effect of D2 on the data:
 
 ## 9. Open questions
 
-See the conversation, or the copy below, which we will update as answers come in.
-
-- Q1 Devices/platform · Q2 Hosting and backup · Q3 Single or multiple users
-- Q4 Licensing authority(ies) and the logbook layout(s) to print
-- Q5 Reports needed (and for what purpose)
-- Q6 Decimal vs HH:MM; whether block times are logged for new flights
-- Q7–Q14 Data-quality items from section 3
+- 2024-10-08 AW139 Level D sim ("semiannual", 4.0 h) is logged as Dual. Should it stay Dual, or
+  become PICUS like 2025-01-13?
+- Logbook print layouts (Phase 3): which authority first, and which columns and page size.
+- Currency rules to apply (per authority, per type), e.g. 3 take-offs and landings in 90 days,
+  night, NVG, deck.

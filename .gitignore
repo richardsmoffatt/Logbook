@@ -1,5 +1,16 @@
-# Personal logbook data - never commit
+# Personal logbook data - never commit (this repository is public)
 *.xlsx
 *.xls
 *.csv
+*.db
+*.db-*
 data/
+corrections*.json
+
+# Tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+frontend/dist/
