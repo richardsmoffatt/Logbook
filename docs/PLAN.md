@@ -136,10 +136,10 @@ map of places flown.
 | D13 | Two-role review done (31 entries). Each entry gets the single role the owner chose; the instructor name goes on the 4 S76 Dual entries from 2002–2004; the 2008-10-27 IMCPC is PIC + Instructor. One entry is open: 1998-03-28 B06 (5.2 h, "Dual Check & Joyflights"). | 2026-10-06 |
 | D14 | Duplicates: delete the 4 repeated 2009 S76 entries (9.8 h). Keep the 2001-02-13 B47G and 2015-02-20 sim pairs, which are genuine separate flights. | 2026-10-06 |
 | D15 | Ignore the small NVG values (3/4/5). NVG total = 45.0 h. | 2026-10-06 |
-| D16 | IFR: the owner's rule is IFR = actual + simulated. Waiting on a choice: either fill the unsplit remainder (actual on aircraft, simulated on sim; total stays 781.7 h) or drop it (total becomes 740.0 h). | 2026-10-06 (pending) |
+| D16 | IFR = actual + simulated, always. Any IFR time not yet split is filled in rather than dropped: it goes to **actual** on aircraft and **simulated** on sim sessions (44.0 h filled across 36 entries). The 1997 ATC-810 entry with no IFR total gets IFR = its 2.3 h simulated. Result: **IFR 784.0 h = 604.4 actual + 179.6 simulated**. The app enforces the rule on entry. | 2026-10-06 |
 
 After D1–D15: **4,040 entries, flight time 9,984.9 h**, sim 334.8 h, PIC 6,291.4, PICUS 160.0, SIC 3,115.2,
-Dual 418.0, Instructor 292.1, NVG 45.0.
+Dual 418.0, Instructor 292.1, NVG 45.0, IFR 784.0 (604.4 actual + 179.6 simulated).
 
 Owner review file: `Logbook-Data-Review.xlsx`, generated from the export and not committed
 because it contains personal data. Tabs: Two roles (31), IFR mismatch (37), Duplicates (12 rows /
