@@ -123,6 +123,19 @@ map of places flown.
 | D1 | The source `DURATION_BLOCK` column is **flight time**. It imports as `flight_time`, and the app labels the main column "Flight time", not "Block". | 2026-10-06 |
 | D2 | Level D full-flight-simulator time **counts as flight time** and is included in totals. The sim session is still recorded (device + level) so it can be reported separately when needed. | 2026-10-06 |
 | D3 | Duplicates (finding 1): the owner is checking them. Leave as-is and flag them until we hear back. | 2026-10-06 (pending) |
+| D4 | `AUH139` entries are simulator sessions. They will be re-typed as AW139 Level D sim and still counted as flight time (D2). | 2026-10-06 |
+| D5 | **Exactly one of PIC / PICUS / SIC / Dual per entry.** The app enforces this on entry. Instructor and examiner remain extra roles on top of PIC. The 31 imported entries that break this rule are being reviewed by the owner. | 2026-10-06 (review pending) |
+| D6 | All times are **decimal hours** (one decimal place). | 2026-10-06 |
+| D7 | NVG: the millisecond values convert to hours (45.0 h in total, which the owner confirms is about right). The 6 small integer values are under review. | 2026-10-06 |
+| D8 | `SHIPS` = ship/deck landings, and they **feed into currency**. | 2026-10-06 |
+| D9 | Non-ICAO location codes are real landing sites. Each gets a `place` record with a name and lat/long, filled in gradually. The app supports unlisted sites and ad-hoc lat/long. | 2026-10-06 |
+| D10 | LIW08–LIW99 are UAE military serials. Keep them as-is; the app permits non-civil registrations. | 2026-10-06 |
+| D11 | Night flights with no night landings are normally ones where the owner was PM. Add PF/PM per flight, and only PF landings count toward currency. Import leaves these entries as they are. | 2026-10-06 |
+| D12 | The 37 IFR entries where total ≠ actual + simulated are under owner review (possibly VFR into IFR). The app will require IFR total = actual + simulated on entry. | 2026-10-06 (review pending) |
+
+Owner review file: `Logbook-Data-Review.xlsx`, generated from the export and not committed
+because it contains personal data. Tabs: Two roles (31), IFR mismatch (37), Duplicates (12 rows /
+6 pairs), NVG small values (6), AUH139 sim (11, for information).
 
 Effect of D2 on the data:
 - Two AW139 Level D sessions have sim time but no flight time: 2024-10-08 ("semiannual", 4.0 h) and
