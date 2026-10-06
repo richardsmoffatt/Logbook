@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, ApiError, Flight, Meta, today } from "../api";
+import { api, ApiError, backLabel, Flight, Meta, today } from "../api";
 
 type Draft = Record<string, string | boolean>;
 const ROLES = ["pic", "picus", "sic", "dual"] as const;
@@ -134,7 +134,7 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel }: Props)
     <form className="card form" onSubmit={(e) => { e.preventDefault(); save(false); }}>
       <div className="page-head">
         <h1>{flightId ? "Edit entry" : "New entry"}</h1>
-        <button type="button" className="ghost" onClick={onCancel}>Close</button>
+        <button type="button" className="ghost" onClick={onCancel}>← Back to {backLabel()}</button>
       </div>
       {errors.length > 0 && (
         <div className="alert">

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, Flight, fmtHours, Meta } from "../api";
+import { api, backTarget, Flight, fmtHours, Meta, openFlight } from "../api";
 import FlightForm from "./FlightForm";
 
 const PAGE = 50;
 const ROLE = (f: Flight) => (f.pic ? "PIC" : f.picus ? "PICUS" : f.sic ? "SIC" : f.dual ? "Dual" : "");
 
 const editing = (): "new" | number | null => {
-  const part = window.location.hash.replace(/^#\/?/, "").split("/")[1];
+  const part = window.location.hash.replace(/^#\/?/, "").split("?")[0].split("/")[1];
   return part === "new" ? "new" : part ? Number(part) : null;
 };
 
@@ -43,7 +43,7 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
   }, []);
   useEffect(() => setOffset(0), [q, from, to, type]);
 
-  const close = () => (window.location.hash = "#/flights");
+  const close = () => (window.location.hash = backTarget());
 
   if (edit !== null)
     return (
@@ -88,7 +88,7 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
           </thead>
           <tbody>
             {items.map((f) => (
-              <tr key={f.id} onClick={() => (window.location.hash = `#/flights/${f.id}`)}>
+              <tr key={f.id} onClick={() => openFlight(f.id!)}>
                 <td className="nowrap">{f.date}</td>
                 <td>{f.dep}</td>
                 <td>{f.arr}</td>

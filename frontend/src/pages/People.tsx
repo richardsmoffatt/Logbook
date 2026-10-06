@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, ApiError, fmtHours } from "../api";
+import { api, ApiError, fmtHours, openFlight } from "../api";
 
 interface Person {
   person: string;
@@ -115,7 +115,7 @@ function PersonDetail({ name, onRenamed }: { name: string; onRenamed: (to: strin
           <thead><tr><th>Date</th><th>Route</th><th>Type</th><th>Reg</th><th className="num">Time</th><th>My role</th><th>Remarks</th></tr></thead>
           <tbody>
             {d.recent.map((f) => (
-              <tr key={f.id} onClick={() => (window.location.hash = `#/flights/${f.id}`)}>
+              <tr key={f.id} onClick={() => openFlight(f.id)}>
                 <td className="nowrap">{f.date}</td>
                 <td className="nowrap">{f.dep}{f.arr && f.arr !== f.dep ? ` – ${f.arr}` : ""}</td>
                 <td>{f.type_code}{f.is_sim ? <span className="badge">SIM</span> : null}</td>
@@ -158,6 +158,11 @@ export default function People() {
     };
     return [...list].sort(by[sort]);
   }, [people, q, role, sort]);
+
+  // Coming back from a flight: bring the selected person into view in the list
+  useEffect(() => {
+    if (sel && people.length) document.querySelector(".people-list tr.selected")?.scrollIntoView({ block: "center" });
+  }, [people.length]);
 
   const open = (name: string) => (window.location.hash = `#/people/${encodeURIComponent(name)}`);
   const th = (key: SortKey, label: string, num = false) => (

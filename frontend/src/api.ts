@@ -179,3 +179,21 @@ export const today = () => {
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
+
+/** Open a flight, remembering the current page so closing it returns here. */
+export const openFlight = (id: number) => {
+  const back = window.location.hash || "#/flights";
+  window.location.hash = `#/flights/${id}?back=${encodeURIComponent(back)}`;
+};
+
+/** Where to go when a flight is closed: the page it was opened from, else the flight list. */
+export const backTarget = () => {
+  const query = window.location.hash.split("?")[1] ?? "";
+  const back = new URLSearchParams(query).get("back");
+  return back && back.startsWith("#/") ? back : "#/flights";
+};
+
+export const backLabel = () => {
+  const page = backTarget().replace(/^#\//, "").split(/[/?]/)[0];
+  return { people: "People", reports: "Reports", dashboard: "Dashboard" }[page] ?? "Flights";
+};
