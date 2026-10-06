@@ -8,7 +8,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import db, flights, importer, reports
+from . import db, flights, importer, people, reports
 from .fields import DIMENSIONS, FLIGHT_FIELDS, METRICS, ROLE_LABEL, minutes_to_hours
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -129,6 +129,25 @@ def create_app(db_path=None):
                      (code, data.get("name") or None, data.get("kind") or None, lat, lon, data.get("notes") or None))
         conn.commit()
         return dict(conn.execute("SELECT * FROM place WHERE code = ?", (code,)).fetchone())
+
+    # ---- people --------------------------------------------------------------------------
+    @app.get("/api/people")
+    def list_people(q: str = None):
+        return people.summary(conn, q)
+
+    @app.get("/api/people/detail")
+    def person_detail(name: str):
+        result = people.detail(conn, name)
+        if result is None:
+            raise HTTPException(404, "No flights with that person")
+        return result
+
+    @app.post("/api/people/rename")
+    def rename_person(data: dict = Body(...)):
+        try:
+            return {"changed": people.rename(conn, data.get("from") or "", data.get("to") or "")}
+        except ValueError as e:
+            raise HTTPException(422, detail={"errors": [str(e)]})
 
     # ---- dashboard -----------------------------------------------------------------------
     @app.get("/api/summary")

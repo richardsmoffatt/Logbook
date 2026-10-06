@@ -246,3 +246,26 @@ def test_import_endpoint_refuses_second_import(client, export):
 def test_backup(client):
     r = client.get("/api/backup")
     assert r.status_code == 200 and r.content.startswith(b"SQLite format 3")
+
+
+def test_people_summary_and_detail(client):
+    people = {p["person"]: p for p in client.get("/api/people").json()}
+    assert "SELF" not in people
+    a = people["Instructor A"]
+    # PIC and instructor on the same 0.2 check flight counts once
+    assert a["flights"] == 1 and a["hours"] == 0.2 and a["dual"] == 0.2
+    assert a["their_roles"] == {"PIC": 1, "Instructor": 1}
+    d = client.get("/api/people/detail", params={"name": "Instructor A"}).json()
+    assert d["my_role"] == [{"key": "Dual", "flights": 1, "hours": 0.2}]
+    assert {r["key"] for r in d["their_role"]} == {"PIC", "Instructor"}
+    assert d["recent"][0]["remarks"] == "Check" and d["first"] == d["last"] == "2020-03-01"
+    assert client.get("/api/people/detail", params={"name": "Nobody"}).status_code == 404
+
+
+def test_people_rename_merges(client):
+    client.post("/api/flights", json={**NEW, "name_copilot": "Instr A"})
+    r = client.post("/api/people/rename", json={"from": "Instr A", "to": "Instructor A"})
+    assert r.json() == {"changed": 1}
+    a = {p["person"]: p for p in client.get("/api/people").json()}["Instructor A"]
+    assert a["flights"] == 2 and a["their_roles"]["Co-pilot"] == 1
+    assert client.post("/api/people/rename", json={"from": "Instructor A", "to": " "}).status_code == 422

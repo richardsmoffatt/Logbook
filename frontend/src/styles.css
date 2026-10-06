@@ -18,8 +18,28 @@
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
   color-scheme: light;
 }
+/* Dark theme: chosen in the top bar (saved per browser), or following the system when unset */
+:root[data-theme="dark"] {
+  --bg: #0f141a;
+  --surface: #171e26;
+  --surface-2: #1e2731;
+  --text: #e6ebf1;
+  --muted: #93a1b2;
+  --border: #2a3542;
+  --accent: #5b9cf0;
+  --accent-text: #0b1420;
+  --accent-soft: #1d2f47;
+  --danger: #f47067;
+  --ok-bg: #12301f;
+  --ok-text: #8fdcaa;
+  --alert-bg: #3a1714;
+  --alert-text: #ffb4ab;
+  --bar: #5b9cf0;
+  --shadow: none;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme]) {
     --bg: #0f141a;
     --surface: #171e26;
     --surface-2: #1e2731;
@@ -171,7 +191,7 @@ legend { font-weight: 700; padding-right: 8px; }
 }
 
 @media print {
-  :root { --bg: #fff; --surface: #fff; --surface-2: #eee; --text: #000; --muted: #444; --border: #bbb; }
+  :root, :root[data-theme] { --bg: #fff; --surface: #fff; --surface-2: #eee; --text: #000; --muted: #444; --border: #bbb; }
   .topbar, .builder, .report .actions, .alert { display: none !important; }
   main { padding: 0; max-width: none; }
   .report-layout { display: block; }
@@ -180,4 +200,30 @@ legend { font-weight: 700; padding-right: 8px; }
   .table th { position: static; }
   .table { font-size: 10px; }
   .title-input { border: none; padding: 0; }
+}
+
+.theme-toggle { margin-left: auto; min-height: 30px; padding: 4px 10px; font-size: 13px; white-space: nowrap; }
+
+/* People */
+.people-layout { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 16px; align-items: start; }
+.people-list { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 70px; max-height: calc(100vh - 90px); }
+.people-list .table-wrap { overflow-y: auto; margin: 0 -16px -16px; }
+.people-list tr.selected { background: var(--accent-soft); }
+.sortable { cursor: pointer; user-select: none; }
+.sortable.sorted { color: var(--accent); }
+.person-name { font-size: 20px; margin: 0; }
+.tiles-small { grid-template-columns: repeat(4, 1fr); }
+.tiles-small .tile-value { font-size: 20px; }
+.tiles-small .tile-value.date { font-size: 15px; padding-top: 4px; }
+.grid-2.tight { gap: 4px 24px; }
+.bar-row.wide-label { grid-template-columns: 90px 1fr 92px; }
+.year-strip { display: flex; align-items: flex-end; gap: 3px; height: 80px; overflow-x: auto; }
+.year { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 18px; }
+.year-bar { width: 14px; background: var(--bar); border-radius: 3px 3px 0 0; }
+.year-label { font-size: 10px; color: var(--muted); }
+.people-flights { max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+@media (max-width: 900px) {
+  .people-layout { grid-template-columns: 1fr; }
+  .people-list { position: static; max-height: 50vh; }
+  .tiles-small { grid-template-columns: repeat(2, 1fr); }
 }
