@@ -133,12 +133,12 @@ map of places flown.
 | D11 | Add a PF/PM marker to each flight. **Landings are independent of PF/PM**: in helicopter operations the PM may fly the landing (e.g. because of the view on the approach), so landings can be logged on a PM flight. Every logged landing is a hands-on landing by the owner and **all of them count toward currency**. Imported flights have no PF/PM value (unknown). | 2026-10-06 |
 | D12 | The 37 IFR entries where total ≠ actual + simulated are under owner review (possibly VFR into IFR). The app will require IFR total = actual + simulated on entry. | 2026-10-06 (review pending) |
 
-| D13 | Two-role review done (31 entries). Each entry gets the single role the owner chose; the instructor name goes on the 4 S76 Dual entries from 2002–2004; the 2008-10-27 IMCPC is PIC + Instructor. One entry is open: 1998-03-28 B06 (5.2 h, "Dual Check & Joyflights"). | 2026-10-06 |
+| D13 | Two-role review done (31 entries). Each entry gets the single role the owner chose; the instructor name goes on the 4 S76 Dual entries from 2002–2004; the 2008-10-27 IMCPC is PIC + Instructor. The 1998-03-28 B06 entry (5.2 h) is split in two: 0.2 h Dual check with John Anderson, and 5.0 h PIC joyflights carrying all 4 landings. | 2026-10-06 |
 | D14 | Duplicates: delete the 4 repeated 2009 S76 entries (9.8 h). Keep the 2001-02-13 B47G and 2015-02-20 sim pairs, which are genuine separate flights. | 2026-10-06 |
 | D15 | Ignore the small NVG values (3/4/5). NVG total = 45.0 h. | 2026-10-06 |
 | D16 | IFR = actual + simulated, always. Any IFR time not yet split is filled in rather than dropped: it goes to **actual** on aircraft and **simulated** on sim sessions (44.0 h filled across 36 entries). The 1997 ATC-810 entry with no IFR total gets IFR = its 2.3 h simulated. Result: **IFR 784.0 h = 604.4 actual + 179.6 simulated**. The app enforces the rule on entry. | 2026-10-06 |
 
-After D1–D15: **4,040 entries, flight time 9,984.9 h**, sim 334.8 h, PIC 6,291.4, PICUS 160.0, SIC 3,115.2,
+After D1–D16: **4,041 entries, flight time 9,984.9 h**, sim 334.8 h, PIC 6,291.2, PICUS 160.0, SIC 3,115.2,
 Dual 418.0, Instructor 292.1, NVG 45.0, IFR 784.0 (604.4 actual + 179.6 simulated).
 
 Owner review file: `Logbook-Data-Review.xlsx`, generated from the export and not committed
