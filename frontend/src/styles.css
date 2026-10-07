@@ -250,3 +250,9 @@ legend { font-weight: 700; padding-right: 8px; }
 .danger-text { color: var(--danger); }
 legend { display: flex; align-items: center; gap: 10px; }
 .link.legend-action { font-size: 12px; font-weight: 500; }
+
+/* Inline-edited table rows (Places, Aircraft types) */
+.saved-mark { color: var(--ok-text); font-size: 12px; font-weight: 600; }
+.error-text { color: var(--danger); max-width: 220px; white-space: normal; }
+.table tr.row-dirty td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.table tr.row-saved td:first-child { box-shadow: inset 3px 0 0 var(--ok-text); }
