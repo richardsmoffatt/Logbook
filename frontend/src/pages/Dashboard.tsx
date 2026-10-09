@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmtHours, Summary } from "../api";
+import RollingNumber from "../RollingNumber";
 
 // Hero tile, then two rows of four (owner's layout): roles on top, conditions below. NVG is in reports.
 const TOTALS: [string, string][] = [
@@ -44,7 +45,7 @@ export default function Dashboard() {
           <div key={key} className={`tile ${i === 0 ? "tile-hero" : ""}`}>
             <div className="tile-label">{label}</div>
             <div className="tile-value">
-              {fmtHours(s.totals[key])}
+              {i === 0 ? <RollingNumber text={fmtHours(s.totals[key])} /> : fmtHours(s.totals[key])}
               {i === 0 && <span className="tile-unit">hours</span>}
             </div>
           </div>

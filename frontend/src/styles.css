@@ -256,3 +256,11 @@ legend { display: flex; align-items: center; gap: 10px; }
 .error-text { color: var(--danger); max-width: 220px; white-space: normal; }
 .table tr.row-dirty td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .table tr.row-saved td:first-child { box-shadow: inset 3px 0 0 var(--ok-text); }
+
+/* Rolling total on the dashboard */
+.roll-number { display: inline-flex; height: 1.1em; line-height: 1.1em; overflow: hidden; vertical-align: bottom; }
+.roll-digit { display: inline-block; height: 1.1em; overflow: hidden; }
+.roll-strip { display: flex; flex-direction: column; will-change: transform; }
+.roll-strip > span, .roll-static { display: block; height: 1.1em; line-height: 1.1em; }
+.tiles-dash .tile-hero .tile-value { display: flex; align-items: flex-end; }
+.tiles-dash .tile-hero .tile-unit { line-height: 1.1em; padding-bottom: 0.32em; font-size: 0.42em; }
