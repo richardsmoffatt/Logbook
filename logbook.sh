@@ -2,7 +2,7 @@
 # Logbook - run from anywhere:  ./logbook.sh setup | serve | import <export.xlsx> [--corrections file.json] [--replace] | test
 set -euo pipefail
 cd "$(dirname "$0")"
-PY=.venv/bin/python
+PY="$PWD/.venv/bin/python"   # absolute: newer Python warns about "backend/../.venv"
 
 case "${1:-serve}" in
   setup)
@@ -17,16 +17,16 @@ case "${1:-serve}" in
   serve)
     shift || true
     [ -d frontend/dist ] || { echo "Run ./logbook.sh setup first"; exit 1; }
-    cd backend && exec "../$PY" -m logbook serve "$@"
+    cd backend && exec "$PY" -m logbook serve "$@"
     ;;
   import)
     shift
     args=()
     for a in "$@"; do [ -e "$a" ] && a="$(realpath "$a")"; args+=("$a"); done
-    cd backend && exec "../$PY" -m logbook import "${args[@]}"
+    cd backend && exec "$PY" -m logbook import "${args[@]}"
     ;;
   test)
-    (cd backend && "../$PY" -m pytest -q)
+    (cd backend && "$PY" -m pytest -q)
     (cd frontend && npm run --silent typecheck)
     ;;
   *)

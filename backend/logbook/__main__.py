@@ -1,6 +1,9 @@
 """Command line: python -m logbook serve | import <export.xlsx> [--corrections file.json] [--replace]"""
 import argparse
+import json
 import os
+import socket
+import urllib.request
 import webbrowser
 
 from . import api, db, importer
@@ -37,10 +40,38 @@ def main():
     else:
         import uvicorn
         url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
+        if port_in_use(args.host, args.port):
+            if is_logbook(url):
+                print(f"The Logbook is already running at {url} - opening it.")
+                if not args.no_browser:
+                    webbrowser.open(url)
+                return
+            raise SystemExit(f"Port {args.port} is being used by another program.\n"
+                             f"Start the Logbook on a different port instead:  ./logbook.sh serve --port {args.port + 1}")
         print(f"Logbook running at {url}  (database: {args.db})  - Ctrl+C to stop")
         if not args.no_browser:
             webbrowser.open(url)
         uvicorn.run(api.create_app(args.db), host=args.host, port=args.port, log_level="warning")
+
+
+def port_in_use(host, port):
+    with socket.socket() as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)   # as uvicorn does
+        try:
+            s.bind((host, port))
+        except OSError:
+            return True
+    return False
+
+
+def is_logbook(url):
+    """True if the program answering at url is this app (e.g. started earlier in another terminal)."""
+    try:
+        local = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never via a proxy
+        with local.open(f"{url}/api/meta", timeout=2) as r:
+            return "custom_fields" in json.load(r)
+    except Exception:
+        return False
 
 
 if __name__ == "__main__":
