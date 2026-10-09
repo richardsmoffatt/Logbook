@@ -17,6 +17,12 @@ case "${1:-serve}" in
   serve)
     shift || true
     [ -d frontend/dist ] || { echo "Run ./logbook.sh setup first"; exit 1; }
+    # After a git pull the screens may have changed: rebuild them if any source is newer than the build
+    if [ -n "$(find frontend/src frontend/index.html frontend/package.json -newer frontend/dist/index.html 2>/dev/null | head -1)" ]; then
+      echo "Updating the app screens..."
+      (cd frontend && { [ -d node_modules ] || npm install --silent; } && npm run build --silent >/dev/null) \
+        || { echo "Could not rebuild the screens - run ./logbook.sh setup"; exit 1; }
+    fi
     cd backend && exec "$PY" -m logbook serve "$@"
     ;;
   import)

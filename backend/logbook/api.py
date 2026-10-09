@@ -288,6 +288,7 @@ def create_app(db_path=None):
         def spa(path: str):
             if path.startswith("api/"):
                 raise HTTPException(404, "Not found")
-            return FileResponse(FRONTEND / "index.html")
+            # no-cache: after an update the browser picks up the new screens without a forced reload
+            return FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-cache"})
 
     return app
