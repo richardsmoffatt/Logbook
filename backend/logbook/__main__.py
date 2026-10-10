@@ -2,11 +2,14 @@
 import argparse
 import json
 import os
+import signal
 import socket
+import subprocess
+import time
 import urllib.request
 import webbrowser
 
-from . import api, db, importer
+from . import api, db, importer, version
 
 
 def main():
@@ -41,13 +44,20 @@ def main():
         import uvicorn
         url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
         if port_in_use(args.host, args.port):
-            if is_logbook(url):
+            running = running_version(url)
+            if running == version.code_version():
                 print(f"The Logbook is already running at {url} - opening it.")
                 if not args.no_browser:
                     webbrowser.open(url)
                 return
-            raise SystemExit(f"Port {args.port} is being used by another program.\n"
-                             f"Start the Logbook on a different port instead:  ./logbook.sh serve --port {args.port + 1}")
+            if running is not None:
+                # An older copy is still running (e.g. started before a git pull): restart it with the update
+                print("Restarting the Logbook to apply the update...")
+                if not stop_running(url, args.host, args.port):
+                    raise SystemExit('The old Logbook would not stop. Run:  pkill -f "logbook serve"  and try again.')
+            else:
+                raise SystemExit(f"Port {args.port} is being used by another program.\n"
+                                 f"Start the Logbook on a different port instead:  ./logbook.sh serve --port {args.port + 1}")
         print(f"Logbook running at {url}  (database: {args.db})  - Ctrl+C to stop")
         if not args.no_browser:
             webbrowser.open(url)
@@ -64,14 +74,34 @@ def port_in_use(host, port):
     return False
 
 
-def is_logbook(url):
-    """True if the program answering at url is this app (e.g. started earlier in another terminal)."""
+_local = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never via a proxy
+
+
+def running_version(url):
+    """Code version of the Logbook answering at url ("" if it predates versioning), or None if it isn't one."""
     try:
-        local = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never via a proxy
-        with local.open(f"{url}/api/meta", timeout=2) as r:
-            return "custom_fields" in json.load(r)
+        with _local.open(f"{url}/api/meta", timeout=2) as r:
+            meta = json.load(r)
     except Exception:
-        return False
+        return None
+    return meta.get("code_version", "") if "custom_fields" in meta else None
+
+
+def stop_running(url, host, port):
+    try:
+        _local.open(urllib.request.Request(f"{url}/api/shutdown", method="POST"), timeout=3).close()
+    except Exception:   # a copy older than the shutdown endpoint: stop it by its process instead
+        found = subprocess.run(["pgrep", "-f", "[-]m logbook .*serve"], capture_output=True, text=True).stdout.split()
+        for pid in {int(p) for p in found} - {os.getpid(), os.getppid()}:   # never this launcher itself
+            try:
+                os.kill(pid, signal.SIGINT)
+            except OSError:
+                pass
+    for _ in range(50):
+        if not port_in_use(host, port):
+            return True
+        time.sleep(0.2)
+    return False
 
 
 if __name__ == "__main__":

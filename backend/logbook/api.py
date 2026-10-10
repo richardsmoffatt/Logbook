@@ -2,13 +2,15 @@ import datetime
 import json
 import os
 import pathlib
+import signal
+import threading
 import tempfile
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import custom, db, flights, importer, people, reports
+from . import custom, db, flights, importer, people, reports, version
 from .fields import CUSTOM_SLOTS, DIMENSIONS, FLIGHT_FIELDS, METRICS, ROLE_LABEL, minutes_to_hours
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -22,6 +24,7 @@ def create_app(db_path=None):
     conn = db.connect(str(db_path))
     app = FastAPI(title="Logbook")
     app.state.conn = conn
+    app.state.code_version = version.code_version()
 
     def invalid(e):
         return HTTPException(422, detail={"errors": e.errors})
@@ -83,6 +86,7 @@ def create_app(db_path=None):
             "metrics": [{"key": k, "label": labels.get(k, v[0]), "kind": v[1]} for k, v in METRICS.items()
                         if k not in CUSTOM_SLOTS or k in labels],
             "custom_fields": custom.active(conn),
+            "code_version": app.state.code_version,
             "dimensions": [{"key": k, "label": v[0]} for k, v in DIMENSIONS.items()],
             "roles": [{"key": k, "label": v} for k, v in ROLE_LABEL.items()],
             "types": [dict(r) for r in conn.execute("SELECT * FROM aircraft_type ORDER BY code")],
@@ -157,6 +161,14 @@ def create_app(db_path=None):
     @app.delete("/api/custom-fields/{slot}")
     def delete_custom(slot: str):
         return {"cleared": custom_call(custom.remove, slot)}
+
+    # ---- restart after an update (used by the launcher; this computer only) -------------
+    @app.post("/api/shutdown", status_code=202)
+    def shutdown(request: Request):
+        if request.client is None or request.client.host not in ("127.0.0.1", "::1", "localhost"):
+            raise HTTPException(403, "Only from this computer")
+        threading.Timer(0.3, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+        return {"stopping": True}
 
     # ---- people --------------------------------------------------------------------------
     @app.get("/api/people")
