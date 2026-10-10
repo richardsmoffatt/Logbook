@@ -6,6 +6,7 @@ The corrections file (JSON) holds personal data and lives outside the repository
   "rules": {
     "nvg_milliseconds": true,          # NVG column is in ms; values below the threshold are ignored
     "nvg_ignore_below": 1000,
+    "nvg_small_values_to": "un1",      # NVG values below the threshold are counts for this number field
     "sim_registrations": ["AUH139"],   # registrations that are simulator sessions
     "sim_devices": {"AW-139": {"type": "A139", "level": "D"}, "Generic": {"type": "SIM"}},
     "sim_default_device": "Generic",   # device for sims with no SIMULATOR_TYPE
@@ -102,10 +103,15 @@ def map_row(raw, rules):
         if slot in CUSTOM_NUMBERS:
             row[slot] = int(value)
         elif column == "NVG" and rules.get("nvg_milliseconds"):
-            # NVG: milliseconds in FLYLOG; small integers are ignored (owner decision D15)
+            # NVG: milliseconds in FLYLOG; small integers are not NVG time (owner decision D15)
             row[slot] = int(round(value / 60000)) if value >= rules.get("nvg_ignore_below", 1000) else 0
         else:
             row[slot] = hours_to_minutes(value)
+    # Small whole numbers in the NVG column were ship landings logged in the wrong column (owner decision D20)
+    small_to = rules.get("nvg_small_values_to", "un1")
+    nvg = _number(raw.get("NVG"))
+    if small_to in CUSTOM_NUMBERS and 0 < nvg < rules.get("nvg_ignore_below", 1000):
+        row[small_to] += int(nvg)
 
     # Simulators
     is_sim = row["type_code"] == "SIM" or row["registration"] in rules.get("sim_registrations", []) \

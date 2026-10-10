@@ -110,8 +110,8 @@ def test_flight_and_sim_rules(conn):
 def test_roles_nvg_ifr_ships(conn):
     assert total(conn, "pic") == pytest.approx(2.0 + 1.0 + 2.8)
     assert total(conn, "dual") == pytest.approx(0.2 + 1.5)          # split check + generic trainer
-    assert total(conn, "uh1") == pytest.approx(1.0)                  # NVG user field; small value ignored
-    assert total(conn, "un1") * 60 == 3                               # ship landings user field
+    assert total(conn, "uh1") == pytest.approx(1.0)                  # NVG user field; small value is not NVG
+    assert total(conn, "un1") * 60 == 3 + 3                           # ship landings, incl. the small NVG value
     assert total(conn, "ifr_actual") == pytest.approx(1.0)           # 0.4 + unsplit 0.6
     assert total(conn, "ifr_sim") == pytest.approx(2.0)
     split = conn.execute("SELECT flight_time, ldg_day, name_instructor FROM flight WHERE date = '2020-03-01' "
@@ -184,7 +184,7 @@ def test_report_summary_grouped(client):
     res = client.post("/api/reports/run", json=spec).json()
     rows = {r[0]: r[1:] for r in res["rows"]}
     assert rows["A139"] == [3, 8.0, 6.0, 3]
-    assert res["totals"] == ["Total", 8, 12.5, 7.5, 3]
+    assert res["totals"] == ["Total", 8, 12.5, 7.5, 6]          # R22 row adds 3 ship landings from NVG
 
 
 def test_report_filters_and_roles(client):
@@ -221,7 +221,9 @@ def test_summary_and_meta(client):
     assert s["totals"]["flight_time"] == 12.5
     assert s["periods"][1] == {"label": "Last 90 days", "hours": 12.5}
     cur = {c["label"]: c["last_90"] for c in s["currency"]}
-    assert cur["Ship landings"] == 3 and cur["NVG hours"] == 1.0      # user fields appear automatically
+    assert cur["Ship landings"] == 6 and cur["NVG hours"] == 1.0      # user fields appear automatically
+    total_col = {c["label"]: c["total"] for c in s["currency"]}
+    assert total_col["Ship landings"] == 6 and total_col["Day landings"] == 6
     meta = client.get("/api/meta").json()
     assert "Instructor A" in meta["names"] and "SELF" not in meta["names"]
     assert {p["code"] for p in meta["places"]} >= {"OMNK", "RIG1"}
@@ -276,13 +278,13 @@ def test_report_uses_user_field_names(client):
     res = client.post("/api/reports/run", json={"group_by": ["type_code"], "columns": ["uh1", "un1"],
                                                 "filters": {"conditions": ["un1"]}}).json()
     assert [h["label"] for h in res["headers"]] == ["Type", "NVG", "Ship landings"]
-    assert res["rows"] == [["A139", 1.0, 3]]
+    assert res["rows"] == [["A139", 1.0, 3], ["R22", 0.0, 3]]
 
 
 def test_custom_fields_add_rename_remove(client):
     listing = client.get("/api/custom-fields").json()
     assert [(f["slot"], f["label"], f["kind"], f["total"]) for f in listing] == \
-        [("uh1", "NVG", "hours", 1.0), ("un1", "Ship landings", "number", 3)]
+        [("uh1", "NVG", "hours", 1.0), ("un1", "Ship landings", "number", 6)]
     r = client.post("/api/custom-fields", json={"label": "Hoist cycles", "kind": "number"})
     assert r.status_code == 201 and r.json()["slot"] == "un2"
     assert client.post("/api/custom-fields", json={"label": "nvg", "kind": "hours"}).status_code == 422  # duplicate
@@ -329,3 +331,20 @@ def test_migration_moves_nvg_and_ships(tmp_path):
     assert list(tmp_path.glob("v0.db.before-user-fields-*"))           # backup copy kept
     db.connect(str(path2))                                              # second open is a no-op
     assert tuple(conn.execute("SELECT uh1, un1 FROM flight").fetchone()) == (30, 2)
+
+
+def test_migration_v2_moves_small_nvg_into_ship_landings(tmp_path, export):
+    """A database imported before this fix (small NVG values dropped) is corrected once, from import_raw."""
+    path = tmp_path / "v1.db"
+    c = db.connect(str(path))
+    importer.import_export(c, export, CORRECTIONS)
+    # Simulate the old import: small NVG value not counted, schema at version 1
+    c.execute("UPDATE flight SET un1 = 0 WHERE source_row = 3")
+    c.execute("PRAGMA user_version = 1"); c.commit(); c.close()
+    c = db.connect(str(path))
+    assert c.execute("SELECT un1 FROM flight WHERE source_row = 3").fetchone()[0] == 3
+    assert c.execute("SELECT SUM(un1) FROM flight").fetchone()[0] == 6
+    assert list(tmp_path.glob("v1.db.before-ship-landings-fix-*"))     # backup kept
+    c.close()
+    c = db.connect(str(path))                                          # runs once only
+    assert c.execute("SELECT SUM(un1) FROM flight").fetchone()[0] == 6

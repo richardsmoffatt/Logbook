@@ -1,4 +1,5 @@
 import datetime
+import json
 import shutil
 import sqlite3
 
@@ -81,7 +82,7 @@ DEFAULT_TYPES = {
 }
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 # The two starting user fields (owner request): NVG hours and ship landings.
 DEFAULT_CUSTOM = [("uh1", "NVG"), ("un1", "Ship landings")]
 
@@ -90,16 +91,46 @@ def _columns(conn):
     return {r[1] for r in conn.execute("PRAGMA table_info(flight)")}
 
 
+def _backup(conn, path, reason):
+    if path and path != ":memory:" and conn.execute("SELECT COUNT(*) FROM flight").fetchone()[0]:
+        conn.commit()
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        shutil.copyfile(path, f"{path}.before-{reason}-{stamp}")
+
+
 def migrate(conn, path=None):
     """Bring an older database up to SCHEMA_VERSION. A file copy is kept before any data moves."""
     version = conn.execute("PRAGMA user_version").fetchone()[0]
-    if version >= SCHEMA_VERSION:
-        return
+    if version < 1:
+        _migrate_v1(conn, path)
+    if version < 2:
+        _migrate_v2(conn, path)
+
+
+def _migrate_v2(conn, path):
+    """Ship landings that FLYLOG held in its NVG column (small whole numbers; owner decision D20).
+    Uses the verbatim import record, so it only touches imported entries and runs once."""
+    raw = []
+    for source_row, data in conn.execute("SELECT source_row, data FROM import_raw"):
+        try:
+            value = float(json.loads(data).get("NVG") or 0)
+        except ValueError:
+            continue
+        if 0 < value < 1000 and value.is_integer():
+            raw.append((int(value), source_row))
+    if raw and conn.execute("SELECT 1 FROM custom_field WHERE slot = 'un1'").fetchone():
+        _backup(conn, path, "ship-landings-fix")
+        with conn:
+            conn.executemany("UPDATE flight SET un1 = un1 + ?, updated_at = datetime('now') "
+                             "WHERE source_row = ?", raw)
+    conn.execute("PRAGMA user_version = 2")
+    conn.commit()
+
+
+def _migrate_v1(conn, path):
     cols = _columns(conn)
-    if "nvg" in cols and path and path != ":memory:" and conn.execute("SELECT COUNT(*) FROM flight").fetchone()[0]:
-        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        conn.commit()
-        shutil.copyfile(path, f"{path}.before-user-fields-{stamp}")
+    if "nvg" in cols:
+        _backup(conn, path, "user-fields")
     with conn:
         for slot in CUSTOM_SLOTS:
             if slot not in cols:
@@ -116,7 +147,7 @@ def migrate(conn, path=None):
                 conn.execute(f"ALTER TABLE flight DROP COLUMN {old}")
             except sqlite3.OperationalError:
                 pass  # SQLite < 3.35 cannot drop columns; the old column is simply unused
-    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    conn.execute("PRAGMA user_version = 1")
     conn.commit()
 
 

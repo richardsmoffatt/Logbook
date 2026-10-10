@@ -199,10 +199,11 @@ def create_app(db_path=None):
                   f["kind"]) for f in custom.active(conn)]
         cur = q(f"SELECT {', '.join(f'SUM({c})' for c, _, _ in rows)} FROM flight WHERE date > ? AND date <= ?",
                 since(90), day.isoformat())
+        alltime = q(f"SELECT {', '.join(f'SUM({c})' for c, _, _ in rows)} FROM flight")
         last = lambda col: q(f"SELECT MAX(date) FROM flight WHERE {col} > 0")[0]
-        currency = [{"label": label, "kind": kind,
-                     "last_90": minutes_to_hours(v) if kind == "hours" else (v or 0), "last": last(col)}
-                    for (col, label, kind), v in zip(rows, cur)]
+        fmt = lambda kind, v: minutes_to_hours(v) if kind == "hours" else (v or 0)
+        currency = [{"label": label, "kind": kind, "last_90": fmt(kind, v), "total": fmt(kind, t), "last": last(col)}
+                    for (col, label, kind), v, t in zip(rows, cur, alltime)]
         by_type = [dict(type_code=r[0], hours=minutes_to_hours(r[1]), last=r[2]) for r in conn.execute(
             "SELECT type_code, SUM(flight_time), MAX(date) FROM flight GROUP BY type_code "
             "HAVING SUM(flight_time) > 0 ORDER BY 2 DESC")]

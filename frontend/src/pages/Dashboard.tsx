@@ -64,12 +64,13 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
-          <h2>Last 90 days</h2>
+          <h2>Landings &amp; user fields</h2>
           <table className="table compact">
             <thead>
               <tr>
                 <th></th>
                 <th className="num">90 days</th>
+                <th className="num">Total</th>
                 <th className="num">Last logged</th>
               </tr>
             </thead>
@@ -78,6 +79,7 @@ export default function Dashboard() {
                 <tr key={c.label}>
                   <td>{c.label}</td>
                   <td className="num">{c.kind === "hours" ? fmtHours(c.last_90) : c.last_90}</td>
+                  <td className="num">{c.kind === "hours" ? fmtHours(c.total) : c.total.toLocaleString()}</td>
                   <td className="num muted">{c.last ?? "-"}</td>
                 </tr>
               ))}

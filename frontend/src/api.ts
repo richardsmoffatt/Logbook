@@ -126,7 +126,7 @@ export interface Summary {
   as_of: string;
   totals: Record<string, number>;
   periods: { label: string; hours: number }[];
-  currency: { label: string; kind: "hours" | "number"; last_90: number; last: string | null }[];
+  currency: { label: string; kind: "hours" | "number"; last_90: number; total: number; last: string | null }[];
   by_type: { type_code: string; hours: number; last: string }[];
 }
 
