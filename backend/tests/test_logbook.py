@@ -348,3 +348,29 @@ def test_migration_v2_moves_small_nvg_into_ship_landings(tmp_path, export):
     c.close()
     c = db.connect(str(path))                                          # runs once only
     assert c.execute("SELECT SUM(un1) FROM flight").fetchone()[0] == 6
+
+
+def test_sic_entries_name_self_as_copilot(conn):
+    rows = conn.execute("SELECT name_pic, name_copilot FROM flight WHERE sic > 0").fetchall()
+    assert rows and all(r["name_copilot"] == "SELF" for r in rows)
+
+
+def test_sic_with_self_as_pic_is_rejected(client):
+    sic = {**NEW, "pic": 0, "sic": 1.4, "name_pic": "SELF", "name_copilot": None}
+    r = client.post("/api/flights", json=sic)
+    assert r.status_code == 422 and any("SIC entry" in e for e in r.json()["detail"]["errors"])
+    r = client.post("/api/flights", json={**sic, "name_pic": "Capt A", "name_copilot": "SELF"})
+    assert r.status_code == 201
+
+
+def test_migration_v3_fills_sic_copilot(tmp_path, export):
+    path = tmp_path / "v2.db"
+    c = db.connect(str(path))
+    importer.import_export(c, export, CORRECTIONS)
+    c.execute("UPDATE flight SET name_copilot = NULL WHERE sic > 0")                  # as imported before
+    c.execute("UPDATE flight SET name_copilot = 'Someone' WHERE id = (SELECT MIN(id) FROM flight WHERE sic > 0)")
+    c.execute("PRAGMA user_version = 2"); c.commit(); c.close()
+    c = db.connect(str(path))
+    names = [r[0] for r in c.execute("SELECT name_copilot FROM flight WHERE sic > 0 ORDER BY id")]
+    assert names[0] == "Someone" and set(names[1:]) == {"SELF"}                        # only blanks filled
+    assert list(tmp_path.glob("v2.db.before-sic-copilot-self-*"))

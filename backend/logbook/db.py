@@ -82,7 +82,7 @@ DEFAULT_TYPES = {
 }
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 # The two starting user fields (owner request): NVG hours and ship landings.
 DEFAULT_CUSTOM = [("uh1", "NVG"), ("un1", "Ship landings")]
 
@@ -105,6 +105,20 @@ def migrate(conn, path=None):
         _migrate_v1(conn, path)
     if version < 2:
         _migrate_v2(conn, path)
+    if version < 3:
+        _migrate_v3(conn, path)
+
+
+def _migrate_v3(conn, path):
+    """SIC entries name the owner as co-pilot (owner decision D21). Only blank co-pilot names are filled."""
+    todo = conn.execute("SELECT COUNT(*) FROM flight WHERE sic > 0 AND name_copilot IS NULL").fetchone()[0]
+    if todo:
+        _backup(conn, path, "sic-copilot-self")
+        with conn:
+            conn.execute("UPDATE flight SET name_copilot = 'SELF', updated_at = datetime('now') "
+                         "WHERE sic > 0 AND name_copilot IS NULL")
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
 
 
 def _migrate_v2(conn, path):

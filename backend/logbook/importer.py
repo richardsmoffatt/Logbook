@@ -199,6 +199,8 @@ def import_export(conn, path, corrections=None, replace=False):
             summary["corrected"] += 1
         for i, out in enumerate(outputs):
             out["source_row"] = number + i / 10          # split parts: 563.0, 563.1
+            if out.get("sic") and not out.get("name_copilot"):
+                out["name_copilot"] = "SELF"             # SIC: the owner is the co-pilot (D21)
             try:
                 flights.insert(conn, out, commit=False)
                 summary["imported"] += 1

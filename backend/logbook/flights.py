@@ -85,6 +85,9 @@ def validate(row, labels=None):
             errors.append("Flight time needs a role (PIC, PICUS, SIC or Dual).")
         elif row[logged[0]] != flight:
             errors.append(f"{ROLE_LABEL[logged[0]]} time must equal flight time.")
+    # SIC entries: the owner is the co-pilot (SELF), so SELF cannot also be the PIC (owner decision D21)
+    if row.get("sic") and (row.get("name_pic") or "").upper() == "SELF":
+        errors.append("On an SIC entry, PIC name is the captain, not SELF (you are the co-pilot).")
 
     total = flight or sim
     for name in ("instructor", "examiner", "night", "xc", "multi_pilot", *CUSTOM_HOURS):

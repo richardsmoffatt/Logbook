@@ -35,6 +35,24 @@ function fromDraft(d: Draft): Partial<Flight> {
   return out as Partial<Flight>;
 }
 
+const isSelf = (v: unknown) => String(v ?? "").trim().toUpperCase() === "SELF";
+
+/** SIC: you are the co-pilot, so SELF goes in Co-pilot and PIC name is the captain (owner decision D21).
+ *  Switching between PIC and SIC swaps the two names, as the other pilot's seat swaps with yours. */
+function crewForRole(d: Draft, role: string, previous: string) {
+  const pic = String(d.name_pic ?? ""), copilot = String(d.name_copilot ?? "");
+  if (role === "sic") {
+    if (previous === "pic" && isSelf(pic)) [d.name_pic, d.name_copilot] = [isSelf(copilot) ? "" : copilot, "SELF"];
+    else {
+      if (isSelf(pic)) d.name_pic = "";
+      if (!copilot || isSelf(copilot)) d.name_copilot = "SELF";
+    }
+  } else if (previous === "sic" && isSelf(copilot)) {
+    if (role === "pic") [d.name_pic, d.name_copilot] = ["SELF", pic];
+    else d.name_copilot = "";
+  } else if (role === "pic" && !pic) d.name_pic = "SELF";
+}
+
 interface Props {
   meta: Meta;
   flightId: number | null;
@@ -62,6 +80,7 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel, onMetaCh
             arr: last.arr ?? "", role: ROLES.find((r) => last[r]) ?? "pic",
             multi_pilot: "",
           });
+          crewForRole(base, String(base.role), "");
         }
         setD(base);
       });
@@ -80,6 +99,7 @@ export default function FlightForm({ meta, flightId, onSaved, onCancel, onMetaCh
     if (k === "is_sim" && !v) Object.assign(next, { sim_time: "", sim_device: "", sim_level: "" });
     // Level D sim time counts as flight time (owner decision D2)
     if ((k === "sim_time" || k === "sim_level") && next.is_sim && next.sim_level === "D") next.flight_time = next.sim_time;
+    if (k === "role") crewForRole(next, String(v), String(d.role));
     // Multi-pilot types: multi-pilot time follows flight time until edited separately
     if (k === "flight_time" && type?.multi_pilot && !next.is_sim && String(d.multi_pilot ?? "") === String(d.flight_time ?? ""))
       next.multi_pilot = v;
