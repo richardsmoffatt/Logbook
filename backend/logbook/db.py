@@ -82,7 +82,7 @@ DEFAULT_TYPES = {
 }
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 # The two starting user fields (owner request): NVG hours and ship landings.
 DEFAULT_CUSTOM = [("uh1", "NVG"), ("un1", "Ship landings")]
 
@@ -107,6 +107,21 @@ def migrate(conn, path=None):
         _migrate_v2(conn, path)
     if version < 3:
         _migrate_v3(conn, path)
+    if version < 4:
+        _migrate_v4(conn)
+
+
+def _migrate_v4(conn):
+    """Crew names spelled "Self"/"self " become SELF; PF/PM written as a tag fills the PF/PM field."""
+    with conn:
+        for col in ("name_pic", "name_copilot", "name_student", "name_instructor", "name_examiner"):
+            conn.execute(f"UPDATE flight SET {col} = 'SELF' WHERE upper(trim({col})) = 'SELF' AND {col} != 'SELF'")
+        for tag in ("PF", "PM"):
+            other = "PM" if tag == "PF" else "PF"
+            conn.execute("UPDATE flight SET pf_pm = ? WHERE pf_pm IS NULL "
+                         "AND ('|' || upper(tags) || '|') LIKE ? AND ('|' || upper(tags) || '|') NOT LIKE ?",
+                         (tag, f"%|{tag}|%", f"%|{other}|%"))
+        conn.execute("PRAGMA user_version = 4")
 
 
 def _migrate_v3(conn, path):

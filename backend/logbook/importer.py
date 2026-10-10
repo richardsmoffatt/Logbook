@@ -199,6 +199,8 @@ def import_export(conn, path, corrections=None, replace=False):
             summary["corrected"] += 1
         for i, out in enumerate(outputs):
             out["source_row"] = number + i / 10          # split parts: 563.0, 563.1
+            if not out.get("pf_pm"):
+                out["pf_pm"] = pf_pm_from_tags(out.get("tags"))   # FLYLOG has no PF/PM column, only tags
             if out.get("sic") and not out.get("name_copilot"):
                 out["name_copilot"] = "SELF"             # SIC: the owner is the co-pilot (D21)
             try:
@@ -223,6 +225,11 @@ def _add_places(conn):
                     SELECT dep FROM flight WHERE dep IS NOT NULL UNION SELECT arr FROM flight WHERE arr IS NOT NULL""")
     conn.execute("INSERT OR IGNORE INTO aircraft_type (code, category) "
                  "SELECT DISTINCT type_code, 'helicopter' FROM flight")
+
+
+def pf_pm_from_tags(tags):
+    found = {t.strip().upper() for t in (tags or "").split("|")} & {"PF", "PM"}
+    return found.pop() if len(found) == 1 else None
 
 
 def load_corrections(path):

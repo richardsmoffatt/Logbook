@@ -374,3 +374,28 @@ def test_migration_v3_fills_sic_copilot(tmp_path, export):
     names = [r[0] for r in c.execute("SELECT name_copilot FROM flight WHERE sic > 0 ORDER BY id")]
     assert names[0] == "Someone" and set(names[1:]) == {"SELF"}                        # only blanks filled
     assert list(tmp_path.glob("v2.db.before-sic-copilot-self-*"))
+
+
+def test_self_spellings_normalised_and_hidden(client):
+    r = client.post("/api/flights", json={**NEW, "pic": 0, "sic": 1.4, "name_pic": "Capt B", "name_copilot": "Self "})
+    assert r.status_code == 201 and r.json()["name_copilot"] == "SELF"
+    assert "Self" not in client.get("/api/meta").json()["names"]
+
+
+def test_pf_pm_taken_from_tags_on_import(tmp_path):
+    from logbook.importer import pf_pm_from_tags
+    assert pf_pm_from_tags("PM") == "PM" and pf_pm_from_tags("NVG|pf") == "PF"
+    assert pf_pm_from_tags("PF|PM") is None and pf_pm_from_tags(None) is None
+
+
+def test_migration_v4_self_and_pf_pm_tags(tmp_path, export):
+    path = tmp_path / "v3.db"
+    c = db.connect(str(path))
+    importer.import_export(c, export, CORRECTIONS)
+    ids = [r[0] for r in c.execute("SELECT id FROM flight ORDER BY id LIMIT 3")]
+    c.execute("UPDATE flight SET name_pic = 'self', tags = 'NVG|PM', pf_pm = NULL WHERE id = ?", (ids[0],))
+    c.execute("UPDATE flight SET tags = 'PF|PM', pf_pm = NULL WHERE id = ?", (ids[1],))
+    c.execute("PRAGMA user_version = 3"); c.commit(); c.close()
+    c = db.connect(str(path))
+    assert tuple(c.execute("SELECT name_pic, pf_pm FROM flight WHERE id = ?", (ids[0],)).fetchone()) == ("SELF", "PM")
+    assert c.execute("SELECT pf_pm FROM flight WHERE id = ?", (ids[1],)).fetchone()[0] is None   # ambiguous: left alone

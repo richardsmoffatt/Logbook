@@ -9,6 +9,7 @@ from .fields import COUNTS, CUSTOM_HOURS, DURATIONS, FIELD_KIND, FIELD_LABEL, FI
 
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 UPPER = ("dep", "arr", "type_code", "registration")
+CREW = ("name_pic", "name_copilot", "name_student", "name_instructor", "name_examiner")
 
 
 def from_api(data):
@@ -29,6 +30,8 @@ def from_api(data):
             value = (str(value).strip() if value is not None else "") or None
             if value and name in UPPER:
                 value = value.upper()
+            if value and name in CREW and value.upper() == "SELF":
+                value = "SELF"                    # "Self", "self " etc. all mean the owner
             row[name] = value
     return row
 

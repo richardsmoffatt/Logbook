@@ -100,7 +100,7 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
                 <td className="num">{f.night ? fmtHours(f.night) : ""}</td>
                 <td className="num">{f.ifr ? fmtHours(f.ifr) : ""}</td>
                 <td className="num">{f.ldg_day + f.ldg_night || ""}</td>
-                <td className="ellipsis">{[f.name_pic, f.name_copilot].filter((n) => n && n !== "SELF").join(", ")}</td>
+                <td className="ellipsis">{[f.name_pic, f.name_copilot].filter((n) => n && n.trim().toUpperCase() !== "SELF").join(", ")}</td>
                 <td className="ellipsis">{f.remarks}</td>
               </tr>
             ))}
