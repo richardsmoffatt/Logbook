@@ -157,7 +157,8 @@ def delete(conn, flight_id):
     return cur.rowcount > 0
 
 
-def search(conn, q=None, date_from=None, date_to=None, type_code=None, limit=50, offset=0):
+def _filter(q=None, date_from=None, date_to=None, type_code=None, pf_pm=None):
+    """WHERE clause for the flight list's search box and filters."""
     where, args = [], []
     if q:
         like = f"%{q}%"
@@ -170,8 +171,34 @@ def search(conn, q=None, date_from=None, date_to=None, type_code=None, limit=50,
         where.append("date <= ?"); args.append(date_to)
     if type_code:
         where.append("type_code = ?"); args.append(type_code)
-    clause = f"WHERE {' AND '.join(where)}" if where else ""
+    if pf_pm in ("PF", "PM"):
+        where.append("pf_pm = ?"); args.append(pf_pm)
+    elif pf_pm == "none":
+        where.append("pf_pm IS NULL")
+    return (f"WHERE {' AND '.join(where)}" if where else ""), args
+
+
+def search(conn, q=None, date_from=None, date_to=None, type_code=None, limit=50, offset=0, pf_pm=None):
+    clause, args = _filter(q, date_from, date_to, type_code, pf_pm)
     total = conn.execute(f"SELECT COUNT(*) FROM flight {clause}", args).fetchone()[0]
     rows = conn.execute(f"SELECT * FROM flight {clause} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
                         args + [limit, offset]).fetchall()
     return total, rows
+
+
+def bulk_set_pf_pm(conn, value, ids=None, filters=None):
+    """Set PF/PM on the given entries, or on every entry matching the flight-list filters.
+    Only PF/PM changes, so no other rule can be broken. Returns the number of entries changed."""
+    if value not in ("PF", "PM", None):
+        raise ValidationError(["PF/PM must be PF, PM or blank."])
+    if ids is not None:
+        ids = [int(i) for i in ids]
+        if not ids:
+            return 0
+        clause, args = f"WHERE id IN ({', '.join('?' * len(ids))})", ids
+    else:
+        clause, args = _filter(**(filters or {}))
+    cur = conn.execute(f"UPDATE flight SET pf_pm = ?, updated_at = datetime('now') {clause} "
+                       f"{'AND' if clause else 'WHERE'} pf_pm IS NOT ?", [value] + args + [value])
+    conn.commit()
+    return cur.rowcount

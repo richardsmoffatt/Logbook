@@ -399,3 +399,21 @@ def test_migration_v4_self_and_pf_pm_tags(tmp_path, export):
     c = db.connect(str(path))
     assert tuple(c.execute("SELECT name_pic, pf_pm FROM flight WHERE id = ?", (ids[0],)).fetchone()) == ("SELF", "PM")
     assert c.execute("SELECT pf_pm FROM flight WHERE id = ?", (ids[1],)).fetchone()[0] is None   # ambiguous: left alone
+
+
+def test_bulk_pf_pm_by_ids_and_by_filter(client):
+    items = client.get("/api/flights", params={"limit": 3}).json()["items"]
+    ids = [f["id"] for f in items]
+    assert client.post("/api/flights/bulk-pf-pm", json={"ids": ids[:2], "pf_pm": "PM"}).json() == {"changed": 2}
+    assert client.post("/api/flights/bulk-pf-pm", json={"ids": ids[:2], "pf_pm": "PM"}).json() == {"changed": 0}
+    assert client.get("/api/flights", params={"pf_pm": "PM"}).json()["total"] == 2
+    assert client.get("/api/flights", params={"pf_pm": "none"}).json()["total"] > 0
+    # by filter: every R22 entry becomes PF
+    r = client.post("/api/flights/bulk-pf-pm", json={"filters": {"type_code": "R22"}, "pf_pm": "PF"}).json()
+    assert r["changed"] == client.get("/api/flights", params={"type_code": "R22"}).json()["total"]
+    assert client.get("/api/flights", params={"pf_pm": "PF"}).json()["total"] == r["changed"]
+    # clear
+    client.post("/api/flights/bulk-pf-pm", json={"ids": ids[:2], "pf_pm": None})
+    assert client.get("/api/flights", params={"pf_pm": "PM"}).json()["total"] == 0
+    assert client.post("/api/flights/bulk-pf-pm", json={"ids": ids, "pf_pm": "XX"}).status_code == 422
+    assert client.post("/api/flights/bulk-pf-pm", json={"pf_pm": "PF"}).status_code == 422          # nothing chosen

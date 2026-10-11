@@ -32,9 +32,22 @@ def create_app(db_path=None):
     # ---- flights -------------------------------------------------------------------------
     @app.get("/api/flights")
     def list_flights(q: str = None, date_from: str = None, date_to: str = None, type_code: str = None,
-                     limit: int = 50, offset: int = 0):
-        total, rows = flights.search(conn, q, date_from, date_to, type_code, min(limit, 500), offset)
+                     pf_pm: str = None, limit: int = 50, offset: int = 0):
+        total, rows = flights.search(conn, q, date_from, date_to, type_code, min(limit, 500), offset, pf_pm)
         return {"total": total, "items": [flights.to_api(r) for r in rows]}
+
+    @app.post("/api/flights/bulk-pf-pm")
+    def bulk_pf_pm(data: dict = Body(...)):
+        """{"pf_pm": "PF"|"PM"|null, and either "ids": [...] or "filters": {q, date_from, date_to, type_code, pf_pm}}"""
+        filters = {k: v for k, v in (data.get("filters") or {}).items()
+                   if k in ("q", "date_from", "date_to", "type_code", "pf_pm") and v}
+        if "ids" not in data and "filters" not in data:
+            raise HTTPException(422, detail={"errors": ["Choose the entries to change."]})
+        try:
+            changed = flights.bulk_set_pf_pm(conn, data.get("pf_pm") or None, data.get("ids"), filters)
+        except flights.ValidationError as e:
+            raise invalid(e)
+        return {"changed": changed}
 
     @app.get("/api/flights/last")
     def last_flight():

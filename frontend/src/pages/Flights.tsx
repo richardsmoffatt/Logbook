@@ -18,7 +18,13 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [type, setType] = useState("");
+  const [pfPm, setPfPm] = useState("");
   const [edit, setEdit] = useState(editing);
+  // Bulk PF/PM: either a set of picked entries, or "every entry matching the filters"
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [allMatching, setAllMatching] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
     const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
@@ -26,11 +32,12 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
     if (from) params.set("date_from", from);
     if (to) params.set("date_to", to);
     if (type) params.set("type_code", type);
+    if (pfPm) params.set("pf_pm", pfPm);
     api.get<{ total: number; items: Flight[] }>(`/api/flights?${params}`).then((r) => {
       setItems(r.items);
       setTotal(r.total);
     });
-  }, [q, from, to, type, offset]);
+  }, [q, from, to, type, pfPm, offset]);
 
   useEffect(() => {
     const t = setTimeout(load, 200);
@@ -41,7 +48,41 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  useEffect(() => setOffset(0), [q, from, to, type]);
+  useEffect(() => { setOffset(0); setPicked(new Set()); setAllMatching(false); }, [q, from, to, type, pfPm]);
+
+  const count = allMatching ? total : picked.size;
+  const pageIds = items.map((f) => f.id!);
+  const pageAllPicked = pageIds.length > 0 && pageIds.every((id) => picked.has(id));
+  const toggle = (id: number) => {
+    const next = new Set(picked);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setPicked(next); setAllMatching(false);
+  };
+  const togglePage = () => {
+    const next = new Set(picked);
+    pageIds.forEach((id) => (pageAllPicked ? next.delete(id) : next.add(id)));
+    setPicked(next); setAllMatching(false);
+  };
+  const clearSelection = () => { setPicked(new Set()); setAllMatching(false); };
+
+  const applyPfPm = async (value: "PF" | "PM" | null) => {
+    const what = value ? `Set ${value}` : "Clear PF/PM";
+    if (count > 1 && !confirm(`${what} on ${count.toLocaleString()} entries?`)) return;
+    setBusy(true);
+    const body = allMatching
+      ? { pf_pm: value, filters: { q, date_from: from, date_to: to, type_code: type, pf_pm: pfPm } }
+      : { pf_pm: value, ids: [...picked] };
+    try {
+      const r = await api.post<{ changed: number }>("/api/flights/bulk-pf-pm", body);
+      setNotice(`${value ? `${value} set` : "PF/PM cleared"} on ${r.changed.toLocaleString()} entr${r.changed === 1 ? "y" : "ies"}.`);
+      clearSelection();
+      load();
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const close = () => (window.location.hash = backTarget());
 
@@ -77,11 +118,42 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
             {meta.types.map((t) => <option key={t.code}>{t.code}</option>)}
           </select>
         </label>
+        <label>
+          <span>PF/PM</span>
+          <select value={pfPm} onChange={(e) => setPfPm(e.target.value)}>
+            <option value="">Any</option>
+            <option value="PF">PF</option>
+            <option value="PM">PM</option>
+            <option value="none">Not set</option>
+          </select>
+        </label>
       </div>
+      {notice && !count && <div className="ok notice" onClick={() => setNotice("")}>{notice}</div>}
+      {count > 0 && (
+        <div className="bulk-bar card">
+          <strong>{count.toLocaleString()} selected</strong>
+          {!allMatching && pageAllPicked && total > pageIds.length && (
+            <button className="link" onClick={() => setAllMatching(true)}>
+              Select all {total.toLocaleString()} matching entries
+            </button>
+          )}
+          {allMatching && <span className="muted small">every entry matching the search and filters</span>}
+          <span className="bulk-actions">
+            <span className="muted small">PF/PM:</span>
+            <button className="primary" disabled={busy} onClick={() => applyPfPm("PF")}>Set PF</button>
+            <button className="primary" disabled={busy} onClick={() => applyPfPm("PM")}>Set PM</button>
+            <button disabled={busy} onClick={() => applyPfPm(null)}>Clear</button>
+            <button className="ghost" onClick={clearSelection}>Cancel</button>
+          </span>
+        </div>
+      )}
       <div className="card table-wrap">
         <table className="table hover">
           <thead>
             <tr>
+              <th className="pick" onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" checked={pageAllPicked} onChange={togglePage} aria-label="Select this page" />
+              </th>
               <th>Date</th><th>From</th><th>To</th><th>Type</th><th>Reg</th>
               <th className="num">Time</th><th>Role</th><th className="num">Night</th><th className="num">IFR</th>
               <th className="num">Ldg</th><th>Crew</th><th>Remarks</th>
@@ -89,7 +161,11 @@ export default function Flights({ meta, onChange }: { meta: Meta; onChange: () =
           </thead>
           <tbody>
             {items.map((f) => (
-              <tr key={f.id} onClick={() => openFlight(f.id!)}>
+              <tr key={f.id} onClick={() => openFlight(f.id!)} className={allMatching || picked.has(f.id!) ? "picked" : ""}>
+                <td className="pick" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={allMatching || picked.has(f.id!)} onChange={() => toggle(f.id!)}
+                    aria-label={`Select ${f.date}`} />
+                </td>
                 <td className="nowrap">{f.date}</td>
                 <td>{f.dep}</td>
                 <td>{f.arr}</td>
