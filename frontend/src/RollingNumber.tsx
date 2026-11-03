@@ -15,7 +15,7 @@ export default function RollingNumber({ from, to }: { from: number; to: number }
   useEffect(() => {
     if (reduced || start === end) { setValue(end); return; }
     const steps = Math.abs(end - start);
-    const duration = Math.min(7000, 1600 + steps * 110);          // ~2.7 s for a 1-hour flight
+    const duration = Math.min(11000, 2000 + steps * 85);          // ~10.5 s for 10 hours
     const ease = (t: number) => 1 - Math.pow(1 - t, 3);            // decelerate into the final value
     let frame = 0;
     const t0 = performance.now() + 400;                            // brief pause so the old total registers

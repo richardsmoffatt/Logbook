@@ -15,6 +15,8 @@ const TOTALS: [string, string][] = [
   ["sim_time", "Simulator"],
 ];
 
+const ROLL_FROM = 10; // the total rolls in from this many hours below
+
 export default function Dashboard() {
   const [s, setS] = useState<Summary | null>(null);
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function Dashboard() {
             <div className="tile-label">{label}</div>
             <div className="tile-value">
               {i === 0
-                ? <RollingNumber from={s.totals[key] - (s.latest?.hours ?? 0)} to={s.totals[key]} />
+                ? <RollingNumber from={Math.max(0, s.totals[key] - ROLL_FROM)} to={s.totals[key]} />
                 : fmtHours(s.totals[key])}
               {i === 0 && <span className="tile-unit">hours</span>}
             </div>
