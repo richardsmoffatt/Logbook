@@ -3,46 +3,55 @@ import { useEffect, useState } from "react";
 const ROW = 1.1; // digit row height in em; matches .roll-digit in styles.css
 
 /**
- * Odometer-style number: each digit spins down to its value. Digits start in turn from the left;
- * each digit further right spins more and settles more slowly, so the last digit lands last.
+ * Odometer: counts up from `from` to `to` (decimal hours, one decimal place). The tenths wheel turns
+ * continuously; each higher wheel moves only while the wheel to its right passes from 9 back to 0,
+ * as on a mechanical counter. The count slows towards the end, so the last tenths creep in.
  */
-export default function RollingNumber({ text }: { text: string }) {
+export default function RollingNumber({ from, to }: { from: number; to: number }) {
   const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const [go, setGo] = useState(false);
+  const start = Math.round(from * 10), end = Math.round(to * 10);   // in tenths
+  const [value, setValue] = useState(reduced ? end : start);
 
   useEffect(() => {
-    if (reduced) return;
-    // Two frames so the start position is painted before the transition begins
-    let inner = 0;
-    const outer = requestAnimationFrame(() => { inner = requestAnimationFrame(() => setGo(true)); });
-    return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner); };
-  }, [text, reduced]);
+    if (reduced || start === end) { setValue(end); return; }
+    const steps = Math.abs(end - start);
+    const duration = Math.min(7000, 1600 + steps * 110);          // ~2.7 s for a 1-hour flight
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);            // decelerate into the final value
+    let frame = 0;
+    const t0 = performance.now() + 400;                            // brief pause so the old total registers
+    const tick = (now: number) => {
+      const t = Math.min(1, Math.max(0, (now - t0) / duration));
+      setValue(start + (end - start) * ease(t));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    setValue(start);
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [start, end, reduced]);
 
-  if (reduced) return <span className="roll-number">{text}</span>;
-
-  const digits = [...text].filter((c) => /\d/.test(c)).length;
-  let d = -1;
+  const text = (end / 10).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const digitCount = [...text].filter((c) => /\d/.test(c)).length;
+  let p = digitCount;          // wheel position: 0 = tenths, 1 = units, 2 = tens ...
   return (
     <span className="roll-number" aria-label={text} role="img">
       {[...text].map((c, i) => {
-        if (!/\d/.test(c)) return <span key={i} className="roll-static" aria-hidden>{c}</span>;
-        d += 1;
-        const target = Number(c);
-        const spins = 1 + d;                                  // rightmost digits spin the most
-        const last = d === digits - 1;
-        const strip = [...Array(spins * 10 + target + 1).keys()].map((n) => n % 10);
-        const duration = 1.0 + d * 0.55 + (last ? 0.9 : 0);    // ...and take longest to settle
-        const delay = d * 0.12;                                // start in turn, left to right
+        if (!/\d/.test(c)) {
+          // separators of digits not yet reached (e.g. the comma when rolling 999.9 -> 1,000.0) stay hidden
+          const hidden = c !== "." && value < Math.pow(10, p);
+          return <span key={i} className="roll-static" style={{ opacity: hidden ? 0 : 1 }} aria-hidden>{c}</span>;
+        }
+        p -= 1;
+        const unit = Math.pow(10, p);
+        const digit = Math.floor(value / unit) % 10;
+        // Carry: a higher wheel turns only during the last tenth of travel of everything below it
+        const below = value % unit;
+        const frac = p === 0 ? value - Math.floor(value) : Math.max(0, below - (unit - 1));
+        const offset = digit + frac;                                 // 0..10 on a 0-9,0 strip
+        const leading = p > 1 && value < unit;                       // not yet reached: blank, not 0
         return (
-          <span key={i} className="roll-digit" aria-hidden>
-            <span
-              className="roll-strip"
-              style={{
-                transform: `translateY(${go ? -(strip.length - 1) * ROW : 0}em)`,
-                transition: go ? `transform ${duration}s cubic-bezier(0.12, 0.7, 0.18, 1) ${delay}s` : "none",
-              }}
-            >
-              {strip.map((n, k) => <span key={k}>{n}</span>)}
+          <span key={i} className="roll-digit" aria-hidden style={{ opacity: leading ? 0 : 1 }}>
+            <span className="roll-strip" style={{ transform: `translateY(${-offset * ROW}em)` }}>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((n, k) => <span key={k}>{n}</span>)}
             </span>
           </span>
         );

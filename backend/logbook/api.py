@@ -229,11 +229,15 @@ def create_app(db_path=None):
         fmt = lambda kind, v: minutes_to_hours(v) if kind == "hours" else (v or 0)
         currency = [{"label": label, "kind": kind, "last_90": fmt(kind, v), "total": fmt(kind, t), "last": last(col)}
                     for (col, label, kind), v, t in zip(rows, cur, alltime)]
+        # Latest flight (by date) counted as flight time: the dashboard total rolls on from before it
+        lf = q("SELECT date, flight_time FROM flight WHERE flight_time > 0 ORDER BY date DESC, id DESC LIMIT 1")
+        latest = {"date": lf[0], "hours": minutes_to_hours(lf[1])} if lf else None
         by_type = [dict(type_code=r[0], hours=minutes_to_hours(r[1]), last=r[2]) for r in conn.execute(
             "SELECT type_code, SUM(flight_time), MAX(date) FROM flight GROUP BY type_code "
             "HAVING SUM(flight_time) > 0 ORDER BY 2 DESC")]
         return {"entries": tot[0], "first": tot[10], "last": tot[11], "totals": totals,
-                "periods": periods, "currency": currency, "by_type": by_type, "as_of": day.isoformat()}
+                "periods": periods, "currency": currency, "by_type": by_type, "as_of": day.isoformat(),
+                "latest": latest}
 
     # ---- reports -------------------------------------------------------------------------
     @app.post("/api/reports/run")

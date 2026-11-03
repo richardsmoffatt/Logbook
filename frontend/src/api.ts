@@ -128,6 +128,7 @@ export interface Summary {
   periods: { label: string; hours: number }[];
   currency: { label: string; kind: "hours" | "number"; last_90: number; total: number; last: string | null }[];
   by_type: { type_code: string; hours: number; last: string }[];
+  latest: { date: string; hours: number } | null;
 }
 
 export class ApiError extends Error {

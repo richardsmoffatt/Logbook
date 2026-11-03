@@ -219,6 +219,7 @@ def test_saved_reports(client):
 def test_summary_and_meta(client):
     s = client.get("/api/summary", params={"today": "2020-03-15"}).json()
     assert s["totals"]["flight_time"] == 12.5
+    assert s["latest"] == {"date": "2020-03-01", "hours": 0.2}     # latest flight-time entry (second split part)
     assert s["periods"][1] == {"label": "Last 90 days", "hours": 12.5}
     cur = {c["label"]: c["last_90"] for c in s["currency"]}
     assert cur["Ship landings"] == 6 and cur["NVG hours"] == 1.0      # user fields appear automatically

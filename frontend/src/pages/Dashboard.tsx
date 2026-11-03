@@ -45,7 +45,9 @@ export default function Dashboard() {
           <div key={key} className={`tile ${i === 0 ? "tile-hero" : ""}`}>
             <div className="tile-label">{label}</div>
             <div className="tile-value">
-              {i === 0 ? <RollingNumber text={fmtHours(s.totals[key])} /> : fmtHours(s.totals[key])}
+              {i === 0
+                ? <RollingNumber from={s.totals[key] - (s.latest?.hours ?? 0)} to={s.totals[key]} />
+                : fmtHours(s.totals[key])}
               {i === 0 && <span className="tile-unit">hours</span>}
             </div>
           </div>
