@@ -15,7 +15,7 @@ const TOTALS: [string, string][] = [
   ["sim_time", "Simulator"],
 ];
 
-const ROLL_FROM = 10; // the total rolls in from this many hours below
+const ROLL_FROM = 5; // the total rolls in from this many hours below
 
 export default function Dashboard() {
   const [s, setS] = useState<Summary | null>(null);
