@@ -35,6 +35,18 @@ private, and this repository is public.
 If any entry breaks the logbook rules, nothing is imported and the problem rows are listed.
 To redo the import later, add `--replace`. This keeps flights you entered in the app.
 
+## Desktop app (Linux)
+
+```bash
+./logbook.sh install-app     # adds "Logbook" to your app menu (pin it to the dock from there)
+./logbook.sh uninstall-app   # removes it again; your data is untouched
+```
+
+Clicking the icon starts the Logbook and opens it in its own window (Chrome, Chromium, Brave or
+Edge if installed, otherwise a Firefox window). Closing the window stops it. Any setup it needs
+happens automatically, with a desktop notification. Log: `~/.local/state/logbook/app.log`.
+If you move the Logbook folder, run `./logbook.sh install-app` again.
+
 ## Run
 
 ```bash

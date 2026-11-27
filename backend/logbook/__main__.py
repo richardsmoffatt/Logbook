@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import shutil
 import signal
 import socket
 import subprocess
@@ -21,6 +22,8 @@ def main():
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to reach it from other devices")
     serve.add_argument("--no-browser", action="store_true")
+    app_cmd = sub.add_parser("app", help="run as a desktop app: own window, stops when the window closes")
+    app_cmd.add_argument("--port", type=int, default=8000)
     imp = sub.add_parser("import", help="import a FLYLOG Excel export")
     imp.add_argument("export")
     imp.add_argument("--corrections")
@@ -40,6 +43,8 @@ def main():
             raise SystemExit(f"{len(result['invalid'])} invalid entries - nothing was imported.")
         print(f"Read {result['read']} rows: imported {result['imported']} entries "
               f"({result['corrected']} corrected, {result['split']} split, {result['deleted']} deleted).")
+    elif args.command == "app":
+        run_app(args.db, args.port)
     else:
         import uvicorn
         url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
@@ -102,6 +107,79 @@ def stop_running(url, host, port):
             return True
         time.sleep(0.2)
     return False
+
+
+# ---- desktop app mode ---------------------------------------------------------------------
+# Chromium-family browsers can open a page as an app window (no tabs or address bar). A separate
+# browser profile keeps the window's process to itself, so we can tell when the window is closed.
+CHROMIUM = ["google-chrome-stable", "google-chrome", "chromium-browser", "chromium", "brave-browser",
+            "microsoft-edge-stable", "vivaldi-stable"]
+CHROMIUM_FLATPAK = ["com.google.Chrome", "org.chromium.Chromium", "com.brave.Browser", "com.microsoft.Edge"]
+PROFILE = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "logbook", "app-window")
+
+
+def window_command(url):
+    """Command that opens url as an app window, best browser first; falls back to the default browser."""
+    flags = [f"--app={url}", "--class=LogbookApp", "--window-size=1440,920",
+             "--no-first-run", "--no-default-browser-check"]
+    custom = os.environ.get("LOGBOOK_BROWSER")
+    if custom:
+        return [custom, f"--user-data-dir={PROFILE}", *flags]
+    for name in CHROMIUM:
+        path = shutil.which(name)
+        if path:
+            return [path, f"--user-data-dir={PROFILE}", *flags]
+    if shutil.which("flatpak"):
+        installed = subprocess.run(["flatpak", "list", "--app", "--columns=application"],
+                                   capture_output=True, text=True).stdout.split()
+        for app_id in CHROMIUM_FLATPAK:
+            if app_id in installed:   # sandboxed browsers keep their own profile
+                return ["flatpak", "run", app_id, *flags]
+    return ["xdg-open", url]
+
+
+def run_app(db_path, port):
+    import threading
+    import uvicorn
+
+    url = f"http://localhost:{port}"
+    if port_in_use("127.0.0.1", port):
+        running = running_version(url)
+        if running == version.code_version():
+            subprocess.Popen(window_command(url))         # already running: just open another window
+            return
+        if running is not None:
+            stop_running(url, "127.0.0.1", port)          # an older copy: replace it with this version
+        else:
+            while port_in_use("127.0.0.1", port):          # port taken by another program: use the next one
+                port += 1
+            url = f"http://localhost:{port}"
+
+    server = uvicorn.Server(uvicorn.Config(api.create_app(db_path), host="127.0.0.1", port=port,
+                                           log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(100):                                   # wait for it to answer (up to 20 s)
+        if running_version(url) is not None:
+            break
+        time.sleep(0.2)
+    else:
+        raise SystemExit("The Logbook did not start; see the app log.")
+    print(f"Logbook app running at {url} (database: {db_path})", flush=True)
+
+    opened = time.monotonic()
+    subprocess.run(window_command(url))
+    if time.monotonic() - opened > 3:
+        # The window ran in its own process and has been closed: stop the Logbook with it
+        server.should_exit = True
+        thread.join(timeout=10)
+        return
+    # The browser handed the window to an already-open browser, so its closing can't be seen:
+    # keep serving; clicking the icon again reuses this copy.
+    try:
+        thread.join()
+    except KeyboardInterrupt:
+        server.should_exit = True
 
 
 if __name__ == "__main__":

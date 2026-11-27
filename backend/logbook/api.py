@@ -318,6 +318,9 @@ def create_app(db_path=None):
         def spa(path: str):
             if path.startswith("api/"):
                 raise HTTPException(404, "Not found")
+            static = (FRONTEND / path).resolve()
+            if path and static.is_file() and FRONTEND.resolve() in static.parents:
+                return FileResponse(static)                  # e.g. the logbook.svg icon
             # no-cache: after an update the browser picks up the new screens without a forced reload
             return FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-cache"})
 

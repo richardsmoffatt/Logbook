@@ -48,9 +48,7 @@ export default function App() {
     <div className="shell">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden>
-            ✈
-          </span>
+          <img className="brand-icon" src="/logbook.svg" alt="" aria-hidden />
           Logbook
         </div>
         <nav>

@@ -79,7 +79,7 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
   background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5;
 }
 .brand { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
-.brand-mark { color: var(--accent); }
+.brand-icon { width: 26px; height: 26px; display: block; }
 .topbar nav { display: flex; gap: 2px; overflow-x: auto; }
 .topbar nav a {
   text-decoration: none; color: var(--muted); padding: 7px 12px; border-radius: 8px; white-space: nowrap;
